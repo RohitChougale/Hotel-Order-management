@@ -1,22 +1,29 @@
-// src/components/AdminMenuList.tsx
 import { useEffect, useState } from "react";
-import { collection, getDocs, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  deleteDoc,
+  doc,
+  updateDoc,
+} from "firebase/firestore";
 import { db } from "../firebase";
 import MenuForm from "./MenuForm";
 
 interface MenuItem {
   id: string;
   name: string;
-  price: number;
+  nameMarathi: string;
+  nonAcPrice: number;
+  acPrice: number;
   type: string;
 }
+
 const typeBadgeClasses: Record<string, string> = {
   breakfast: "bg-yellow-100 text-yellow-800",
   meal: "bg-green-100 text-green-800",
   drink: "bg-blue-100 text-blue-800",
   default: "bg-gray-100 text-gray-800",
 };
-
 
 export default function AdminMenuList() {
   const [menu, setMenu] = useState<MenuItem[]>([]);
@@ -40,7 +47,16 @@ export default function AdminMenuList() {
     setMenu((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const handleUpdate = async (data: { name: string; price: number; type: string }, id?: string) => {
+  const handleUpdate = async (
+    data: {
+      name: string;
+      nameMarathi: string;
+      nonAcPrice: number;
+      acPrice: number;
+      type: string;
+    },
+    id?: string
+  ) => {
     if (!id) return;
     await updateDoc(doc(db, "menu", id), data);
     setMenu((prev) =>
@@ -59,7 +75,10 @@ export default function AdminMenuList() {
 
       {/* ───── Filter by Type ───── */}
       <div className="w-full sm:max-w-xs">
-        <label htmlFor="typeFilter" className="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          htmlFor="typeFilter"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
           Filter by Food Type
         </label>
         <select
@@ -78,20 +97,24 @@ export default function AdminMenuList() {
       {/* ───── Menu Items ───── */}
       <div className="space-y-2">
         {filteredMenu.map((item) => (
-          <div key={item.id} className="flex justify-between items-center border p-2 rounded bg-white">
-            <div>
-              <p className="font-semibold">{item.name}</p>
-              <p className="text-sm text-gray-500 flex items-center gap-2">
-  ₹{item.price}
-  <span
-    className={`px-2 py-0.5 rounded text-xs font-medium ${
-      typeBadgeClasses[item.type] || typeBadgeClasses.default
-    }`}
-  >
-    {item.type}
-  </span>
-</p>
-
+          <div
+            key={item.id}
+            className="flex justify-between items-center border p-3 rounded bg-white"
+          >
+            <div className="space-y-1">
+              <p className="font-semibold text-lg">{item.name}</p>
+              <p className="text-sm text-gray-600 italic">{item.nameMarathi}</p>
+              <p className="text-sm text-gray-700">
+                <span className="font-medium">Non-AC:</span> ₹{item.nonAcPrice}{" "}
+                | <span className="font-medium">AC:</span> ₹{item.acPrice}
+              </p>
+              <span
+                className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-medium ${
+                  typeBadgeClasses[item.type] || typeBadgeClasses.default
+                }`}
+              >
+                {item.type}
+              </span>
             </div>
             <div className="space-x-2">
               <button
