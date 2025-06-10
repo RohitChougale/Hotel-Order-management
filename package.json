@@ -8,6 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.4",
     "firebase": "^11.8.1",
     "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",

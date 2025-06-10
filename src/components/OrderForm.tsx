@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
-import { collection, getDocs, query, where, addDoc, updateDoc, doc, Timestamp } from "firebase/firestore";
+import { collection, getDocs, query, where, addDoc, updateDoc, doc, Timestamp, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 
 interface MenuItem {
   id: string;
   name: string;
   price: number;
+  acPrice?: number;
+  nonAcPrice?: number;
   type: string;
+  nameMarathi:string;
 }
 
 interface HotelInfo {
@@ -18,13 +21,19 @@ interface HotelInfo {
   nonAcTables: string;
 }
 
+interface Settings {
+  acPerItem: boolean;
+}
+
 export default function OrderForm() {
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [order, setOrder] = useState<{ [id: string]: number }>({});
   const [table, setTable] = useState("");
   const [splitOption, setSplitOption] = useState("");
   const [selectedType, setSelectedType] = useState<string>("all");
+  const [searchTerm, setSearchTerm] = useState("");
   const [hotelInfo, setHotelInfo] = useState<HotelInfo | null>(null);
+  const [settings, setSettings] = useState<Settings | null>(null);
 
   useEffect(() => {
     const fetchMenu = async () => {
@@ -44,8 +53,27 @@ export default function OrderForm() {
       }
     };
 
+    const unsubscribeSettings = onSnapshot(
+      collection(db, "settings"),
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const doc = snapshot.docs[0];
+          setSettings(doc.data() as Settings);
+          console.log("Settings updated:", doc.data()); // Optional: for debugging
+        }
+      },
+      (error) => {
+        console.error("Error listening to settings:", error);
+      }
+    );
+
     fetchMenu();
     fetchHotelInfo();
+
+    // Cleanup function to unsubscribe from the listener
+    return () => {
+      unsubscribeSettings();
+    };
   }, []);
 
   const handleQuantityChange = (id: string, qty: number) => {
@@ -58,15 +86,26 @@ export default function OrderForm() {
     return tableNum >= acStart && tableNum <= acEnd;
   };
 
+  const getItemPrice = (item: MenuItem): number => {
+    if (settings?.acPerItem) {
+      
+      return item.acPrice || item.price;
+    } else {
+      return item.nonAcPrice || item.price;
+    }
+  };
+
   const handleSubmit = async () => {
     const items = Object.entries(order)
       .filter(([_, qty]) => qty > 0)
       .map(([id, qty]) => {
         const item = menu.find((m) => m.id === id);
+        const itemPrice = item ? getItemPrice(item) : 0;
         return {
           name: item?.name || "",
-          price: item?.price || 0,
+          price: itemPrice,
           quantity: qty,
+          marathiName:item?.nameMarathi
         };
       });
 
@@ -86,11 +125,10 @@ export default function OrderForm() {
     const acCharge = isAc ? hotelInfo?.acCharge || 0 : hotelInfo?.nonAcCharge || 0;
 
     const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-const gstAmount = hotelInfo ? (subtotal * hotelInfo.gst) / 100 : 0;
-const total = parseFloat((subtotal + acCharge + gstAmount).toFixed(2));  // round for safety
+    const gstAmount = hotelInfo ? (subtotal * hotelInfo.gst) / 100 : 0;
+    const total = parseFloat((subtotal + acCharge + gstAmount).toFixed(2));
 
-
-    // 🔁 Check if table already exists
+    // Check if table already exists
     const q = query(collection(db, "runningTables"), where("table", "==", finalTable));
     const existing = await getDocs(q);
 
@@ -153,6 +191,13 @@ const total = parseFloat((subtotal + acCharge + gstAmount).toFixed(2));  // roun
     }
   };
 
+  // Filter menu items based on search term and selected type
+  const filteredMenu = menu.filter((item) => {
+    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesType = selectedType === "all" || item.type === selectedType;
+    return matchesSearch && matchesType;
+  });
+
   return (
     <div className="p-6 bg-white rounded-xl shadow-md space-y-6">
       <h3 className="text-2xl font-bold text-gray-800">🍽️ Take Order</h3>
@@ -189,35 +234,50 @@ const total = parseFloat((subtotal + acCharge + gstAmount).toFixed(2));  // roun
         </select>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-        {menu
-          .filter((item) => selectedType === "all" || item.type === selectedType)
-          .map((item) => (
-            <div
-              key={item.id}
-              className="border rounded-lg p-3 hover:shadow-md transition flex flex-col justify-between h-full"
-            >
-              <div>
-                <div className="font-medium text-gray-800 text-sm truncate">{item.name}</div>
-                <div className="text-xs text-gray-500">
-                  ₹{item.price}{" "}
-                  <span
-                    className={`inline-block mt-1 text-[10px] px-2 py-0.5 rounded ${getBadgeColor(item.type)}`}
-                  >
-                    {item.type}
-                  </span>
-                </div>
-              </div>
-              <input
-                type="number"
-                min="0"
-                value={order[item.id] || ""}
-                onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value) || 0)}
-                className="border mt-2 text-center rounded p-1 text-sm w-full"
-              />
-            </div>
-          ))}
+      {/* Search Box */}
+      <div className="w-full">
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="🔍 Search items..."
+          className="border p-3 rounded-lg w-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
       </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+        {filteredMenu.map((item) => (
+          <div
+            key={item.id}
+            className="border rounded-lg p-3 hover:shadow-md transition flex flex-col justify-between h-full"
+          >
+            <div>
+              <div className="font-medium text-gray-800 text-sm truncate">{item.name}</div>
+              <div className="text-xs text-gray-500">
+                ₹{getItemPrice(item)}{" "}
+                <span
+                  className={`inline-block mt-1 text-[10px] px-2 py-0.5 rounded ${getBadgeColor(item.type)}`}
+                >
+                  {item.type}
+                </span>
+              </div>
+            </div>
+            <input
+              type="number"
+              min="0"
+              value={order[item.id] || ""}
+              onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value) || 0)}
+              className="border mt-2 text-center rounded p-1 text-sm w-full"
+            />
+          </div>
+        ))}
+      </div>
+
+      {filteredMenu.length === 0 && (
+        <div className="text-center text-gray-500 py-8">
+          <p>No items found matching your search criteria</p>
+        </div>
+      )}
 
       <button
         onClick={handleSubmit}

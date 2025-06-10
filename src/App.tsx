@@ -7,6 +7,7 @@ import Home from "./pages/home";
 import OrderSummary from "./components/OrderSummary";
 import RunningTables from "./components/RunningTables";
 import UnpaidBills from "./components/Bills";
+import Settings from "./components/Settings";
 
 function App() {
   return (
@@ -83,6 +84,7 @@ function App() {
           <Route path="orderSummary" element={<OrderSummary/>}/>
           <Route path="/running-tables" element={<RunningTables />} />
           <Route path="/bills" element={<UnpaidBills/>}/>
+          <Route path="/settings" element={<Settings/>}/>
 
         </Routes>
       </main>
