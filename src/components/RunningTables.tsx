@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { collection, getDocs, deleteDoc, doc, addDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
@@ -19,7 +19,9 @@ interface RunningTable {
 
 export default function RunningTables() {
   const [tables, setTables] = useState<RunningTable[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const tableRefs = useRef<{ [key: string]: HTMLLIElement | null }>({});
 
   const fetchRunningTables = async () => {
     setLoading(true);
@@ -34,19 +36,14 @@ export default function RunningTables() {
 
   const handleCloseTable = async (table: RunningTable) => {
     try {
-      // 1. Add to "bills" collection
       await addDoc(collection(db, "bills"), {
         ...table,
         paid: "no",
         closedAt: new Date(),
       });
-
-      // 2. Remove from "runningTables"
       await deleteDoc(doc(db, "runningTables", table.id));
-
       alert(`Table ${table.table} closed and moved to billing!`);
-
-      // 3. Refresh list
+      setExpandedId(null);
       fetchRunningTables();
     } catch (err) {
       console.error("Error closing table:", err);
@@ -58,50 +55,84 @@ export default function RunningTables() {
     fetchRunningTables();
   }, []);
 
+  useEffect(() => {
+    // Scroll to selected table
+    if (expandedId && tableRefs.current[expandedId]) {
+      tableRefs.current[expandedId]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [expandedId]);
+
   if (loading) return <p className="p-4">Loading...</p>;
 
   return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold mb-4">🧾 Running Tables</h2>
-
-      {tables.length === 0 ? (
-        <p>No running tables right now.</p>
-      ) : (
-        <div className="space-y-4">
-          {tables.map((table) => (
-            <div
-              key={table.id}
-              className="border p-4 rounded shadow bg-white"
-            >
-              <h3 className="text-lg font-semibold mb-2">
-                Table: {table.table}
-              </h3>
-              <ul className="text-sm mb-2">
-                {table.items.map((item, idx) => (
-                  <li key={idx} className="flex justify-between">
-                    <span>{item.name} x {item.quantity}</span>
-                    <span>₹{item.quantity * item.price}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="text-sm text-gray-600 mb-2">
-  <p>AC Charge: ₹{Number(table.acCharge).toFixed(2)}</p>
-  <p>GST: ₹{Number(table.gstAmount).toFixed(2)}</p>
-  <p className="font-semibold">Total: ₹{Number(table.total).toFixed(2)}</p>
-</div>
-
-
-              <button
-                onClick={() => handleCloseTable(table)}
-                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+    <div className="flex h-screen">
+      {/* Sidebar */}
+      <div className="w-72 bg-gray-100 border-r p-4 overflow-y-auto">
+        <h2 className="text-xl font-bold mb-4">🧾 Running Tables</h2>
+        {tables.length === 0 ? (
+          <p className="text-sm">No running tables</p>
+        ) : (
+          <ul className="space-y-2">
+            {tables.map((table) => (
+              <li
+                key={table.id}
+                ref={(el) => (tableRefs.current[table.id] = el)}
+                className="transition-all duration-300"
               >
-                Close Table
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+                <button
+                  onClick={() =>
+                    setExpandedId(expandedId === table.id ? null : table.id)
+                  }
+                  className={`w-full text-left px-3 py-2 rounded shadow text-sm font-medium transition-all duration-200 ${
+                    expandedId === table.id
+                      ? "bg-blue-100 font-semibold"
+                      : "bg-white hover:bg-gray-50"
+                  }`}
+                >
+                  Table {table.table}
+                </button>
+
+                {/* Dropdown with animation */}
+                <div
+                  className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                    expandedId === table.id ? "max-h-96 mt-2" : "max-h-0"
+                  }`}
+                >
+                  {expandedId === table.id && (
+                    <div className="bg-white rounded-lg p-3 shadow-inner text-sm space-y-2 border">
+                      <ul className="space-y-1">
+                        {table.items.map((item, idx) => (
+                          <li key={idx} className="flex justify-between">
+                            <span>
+                              {item.name} × {item.quantity}
+                            </span>
+                            <span>₹{item.price * item.quantity}</span>
+                          </li>
+                        ))}
+                      </ul>
+
+                      <div className="text-gray-600 border-t pt-2 text-xs space-y-1">
+                        <p>AC Charge: ₹{Number(table.acCharge).toFixed(2)}</p>
+                        <p>GST: ₹{Number(table.gstAmount).toFixed(2)}</p>
+                        <p className="font-semibold">
+                          Total: ₹{Number(table.total).toFixed(2)}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => handleCloseTable(table)}
+                        className="w-full bg-red-600 hover:bg-red-700 text-white py-1.5 rounded text-xs font-semibold"
+                      >
+                        Close Table
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
