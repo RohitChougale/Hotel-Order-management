@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { collection, getDocs, query, where, addDoc, updateDoc, doc, Timestamp, onSnapshot } from "firebase/firestore";
+import { collection, getDocs, query, where, addDoc, updateDoc, doc,arrayUnion, Timestamp, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 
 interface MenuItem {
@@ -170,6 +170,48 @@ export default function OrderForm() {
         createdAt: Timestamp.now(),
       });
     }
+
+// 🔁 Save to 'orders' collection (one document per table)
+const kotRefQuery = query(collection(db, "orders"), where("table", "==", finalTable));
+const existingKot = await getDocs(kotRefQuery);
+
+const kotItems = items.map((item) => ({
+  name: item.name,
+  quantity: item.quantity,
+  timestamp: Timestamp.now(),
+  marathiName: item.marathiName,
+}));
+
+if (!existingKot.empty) {
+  const kotDocRef = existingKot.docs[0].ref;
+  const existingData = existingKot.docs[0].data();
+  const existingItems = existingData.items || [];
+
+  // Merge items by name
+  kotItems.forEach((newItem) => {
+    const index = existingItems.findIndex(
+      (it: any) => it.name === newItem.name
+    );
+    if (index > -1) {
+      existingItems[index].quantity += newItem.quantity;
+    } else {
+      existingItems.push(newItem);
+    }
+  });
+
+  await updateDoc(kotDocRef, {
+    items: existingItems,
+    updatedAt: Timestamp.now(),
+  });
+} else {
+  await addDoc(collection(db, "orders"), {
+    table: finalTable,
+    items: kotItems,
+    createdAt: Timestamp.now(),
+  });
+}
+
+
 
     alert("✅ Order sent to kitchen and added to running tables!");
 
