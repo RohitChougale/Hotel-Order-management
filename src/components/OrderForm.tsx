@@ -1,5 +1,16 @@
 import { useEffect, useState } from "react";
-import { collection, getDocs, query, where, addDoc, updateDoc, doc,arrayUnion, Timestamp, onSnapshot } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  addDoc,
+  updateDoc,
+  doc,
+  arrayUnion,
+  Timestamp,
+  onSnapshot,
+} from "firebase/firestore";
 import { db } from "../firebase";
 
 interface MenuItem {
@@ -9,7 +20,7 @@ interface MenuItem {
   acPrice?: number;
   nonAcPrice?: number;
   type: string;
-  nameMarathi:string;
+  nameMarathi: string;
 }
 
 interface HotelInfo {
@@ -88,137 +99,136 @@ export default function OrderForm() {
 
   const getItemPrice = (item: MenuItem): number => {
     if (settings?.acPerItem) {
-      
       return item.acPrice || item.price;
     } else {
       return item.nonAcPrice || item.price;
     }
   };
+const handleSubmit = async () => {
+  const items = Object.entries(order)
+    .filter(([_, qty]) => qty > 0)
+    .map(([id, qty]) => {
+      const item = menu.find((m) => m.id === id);
+      const itemPrice = item ? getItemPrice(item) : 0;
+      return {
+        name: item?.name || "",
+        price: itemPrice,
+        quantity: qty,
+        marathiName: item?.nameMarathi,
+      };
+    });
 
-  const handleSubmit = async () => {
-    const items = Object.entries(order)
-      .filter(([_, qty]) => qty > 0)
-      .map(([id, qty]) => {
-        const item = menu.find((m) => m.id === id);
-        const itemPrice = item ? getItemPrice(item) : 0;
-        return {
-          name: item?.name || "",
-          price: itemPrice,
-          quantity: qty,
-          marathiName:item?.nameMarathi
-        };
-      });
+  if (!table || items.length === 0) {
+    alert("Select a table and at least one item");
+    return;
+  }
 
-    if (!table || items.length === 0) {
-      alert("Select a table and at least one item");
-      return;
-    }
+  const tableNumber = parseInt(table);
+  if (isNaN(tableNumber)) {
+    alert("Table number must be a valid number");
+    return;
+  }
 
-    const tableNumber = parseInt(table);
-    if (isNaN(tableNumber)) {
-      alert("Table number must be a valid number");
-      return;
-    }
+  const finalTable = splitOption ? `${table}-${splitOption}` : table;
+  const isAc = isAcTable(tableNumber);
 
-    const finalTable = splitOption ? `${table}-${splitOption}` : table;
-    const isAc = isAcTable(tableNumber);
-    const acCharge = isAc ? hotelInfo?.acCharge || 0 : hotelInfo?.nonAcCharge || 0;
+  const applyAcCharge = !(settings?.acPerItem); // Only apply if acPerItem is false or undefined
 
-    const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const gstAmount = hotelInfo ? (subtotal * hotelInfo.gst) / 100 : 0;
-    const total = parseFloat((subtotal + acCharge + gstAmount).toFixed(2));
+  const acCharge = applyAcCharge
+    ? isAc
+      ? hotelInfo?.acCharge || 0
+      : hotelInfo?.nonAcCharge || 0
+    : 0;
 
-    // Check if table already exists
-    const q = query(collection(db, "runningTables"), where("table", "==", finalTable));
-    const existing = await getDocs(q);
+  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const gstAmount = hotelInfo ? (subtotal * hotelInfo.gst) / 100 : 0;
+  const total = parseFloat((subtotal + acCharge + gstAmount).toFixed(2));
 
-    if (!existing.empty) {
-      const docRef = existing.docs[0].ref;
-      const existingData = existing.docs[0].data();
-      const existingItems = existingData.items || [];
+  const q = query(collection(db, "runningTables"), where("table", "==", finalTable));
+  const existing = await getDocs(q);
 
-      const updatedItems = [...existingItems];
+  if (!existing.empty) {
+    const docRef = existing.docs[0].ref;
+    const existingData = existing.docs[0].data();
+    const existingItems = existingData.items || [];
 
-      // Merge quantities if item exists
-      items.forEach((newItem) => {
-        const existingIndex = updatedItems.findIndex((item: any) => item.name === newItem.name);
-        if (existingIndex > -1) {
-          updatedItems[existingIndex].quantity += newItem.quantity;
-        } else {
-          updatedItems.push(newItem);
-        }
-      });
+    const updatedItems = [...existingItems];
 
-      const newSubtotal = updatedItems.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0);
-      const newGstAmount = (newSubtotal * hotelInfo!.gst) / 100;
-      const newTotal = newSubtotal + acCharge + newGstAmount;
+    items.forEach((newItem) => {
+      const existingIndex = updatedItems.findIndex((item: any) => item.name === newItem.name);
+      if (existingIndex > -1) {
+        updatedItems[existingIndex].quantity += newItem.quantity;
+      } else {
+        updatedItems.push(newItem);
+      }
+    });
 
-      await updateDoc(docRef, {
-        items: updatedItems,
-        total: newTotal,
-        gstAmount: newGstAmount,
-        acCharge: acCharge,
-        updatedAt: Timestamp.now(),
-      });
-    } else {
-      await addDoc(collection(db, "runningTables"), {
-        table: finalTable,
-        items,
-        acCharge,
-        gstAmount,
-        total,
-        createdAt: Timestamp.now(),
-      });
-    }
+    const newSubtotal = updatedItems.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0);
+    const newGstAmount = (newSubtotal * hotelInfo!.gst) / 100;
+    const newTotal = parseFloat((newSubtotal + acCharge + newGstAmount).toFixed(2));
 
-// 🔁 Save to 'orders' collection (one document per table)
-const kotRefQuery = query(collection(db, "orders"), where("table", "==", finalTable));
-const existingKot = await getDocs(kotRefQuery);
+    await updateDoc(docRef, {
+      items: updatedItems,
+      total: newTotal,
+      gstAmount: newGstAmount,
+      acCharge: acCharge,
+      updatedAt: Timestamp.now(),
+    });
+  } else {
+    await addDoc(collection(db, "runningTables"), {
+      table: finalTable,
+      items,
+      acCharge,
+      gstAmount,
+      total,
+      createdAt: Timestamp.now(),
+    });
+  }
 
-const kotItems = items.map((item) => ({
-  name: item.name,
-  quantity: item.quantity,
-  timestamp: Timestamp.now(),
-  marathiName: item.marathiName,
-}));
+  // 🔁 Save to 'orders' collection (one document per table)
+  const kotRefQuery = query(collection(db, "orders"), where("table", "==", finalTable));
+  const existingKot = await getDocs(kotRefQuery);
 
-if (!existingKot.empty) {
-  const kotDocRef = existingKot.docs[0].ref;
-  const existingData = existingKot.docs[0].data();
-  const existingItems = existingData.items || [];
+  const kotItems = items.map((item) => ({
+    name: item.name,
+    quantity: item.quantity,
+    timestamp: Timestamp.now(),
+    marathiName: item.marathiName,
+  }));
 
-  // Merge items by name
-  kotItems.forEach((newItem) => {
-    const index = existingItems.findIndex(
-      (it: any) => it.name === newItem.name
-    );
-    if (index > -1) {
-      existingItems[index].quantity += newItem.quantity;
-    } else {
-      existingItems.push(newItem);
-    }
-  });
+  if (!existingKot.empty) {
+    const kotDocRef = existingKot.docs[0].ref;
+    const existingData = existingKot.docs[0].data();
+    const existingItems = existingData.items || [];
 
-  await updateDoc(kotDocRef, {
-    items: existingItems,
-    updatedAt: Timestamp.now(),
-  });
-} else {
-  await addDoc(collection(db, "orders"), {
-    table: finalTable,
-    items: kotItems,
-    createdAt: Timestamp.now(),
-  });
-}
+    kotItems.forEach((newItem) => {
+      const index = existingItems.findIndex((it: any) => it.name === newItem.name);
+      if (index > -1) {
+        existingItems[index].quantity += newItem.quantity;
+      } else {
+        existingItems.push(newItem);
+      }
+    });
 
+    await updateDoc(kotDocRef, {
+      items: existingItems,
+      updatedAt: Timestamp.now(),
+    });
+  } else {
+    await addDoc(collection(db, "orders"), {
+      table: finalTable,
+      items: kotItems,
+      createdAt: Timestamp.now(),
+    });
+  }
 
+  alert("✅ Order sent to kitchen and added to running tables!");
 
-    alert("✅ Order sent to kitchen and added to running tables!");
+  setOrder({});
+  setTable("");
+  setSplitOption("");
+};
 
-    setOrder({});
-    setTable("");
-    setSplitOption("");
-  };
 
   const getBadgeColor = (type: string) => {
     switch (type) {
@@ -235,7 +245,9 @@ if (!existingKot.empty) {
 
   // Filter menu items based on search term and selected type
   const filteredMenu = menu.filter((item) => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = item.name
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
     const matchesType = selectedType === "all" || item.type === selectedType;
     return matchesSearch && matchesType;
   });
@@ -294,11 +306,15 @@ if (!existingKot.empty) {
             className="border rounded-lg p-3 hover:shadow-md transition flex flex-col justify-between h-full"
           >
             <div>
-              <div className="font-medium text-gray-800 text-sm truncate">{item.name}</div>
+              <div className="font-medium text-gray-800 text-sm truncate">
+                {item.name}
+              </div>
               <div className="text-xs text-gray-500">
                 ₹{getItemPrice(item)}{" "}
                 <span
-                  className={`inline-block mt-1 text-[10px] px-2 py-0.5 rounded ${getBadgeColor(item.type)}`}
+                  className={`inline-block mt-1 text-[10px] px-2 py-0.5 rounded ${getBadgeColor(
+                    item.type
+                  )}`}
                 >
                   {item.type}
                 </span>
@@ -308,7 +324,9 @@ if (!existingKot.empty) {
               type="number"
               min="0"
               value={order[item.id] || ""}
-              onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value) || 0)}
+              onChange={(e) =>
+                handleQuantityChange(item.id, parseInt(e.target.value) || 0)
+              }
               className="border mt-2 text-center rounded p-1 text-sm w-full"
             />
           </div>
