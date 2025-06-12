@@ -8,6 +8,7 @@ import OrderSummary from "./components/OrderSummary";
 import RunningTables from "./components/RunningTables";
 import UnpaidBills from "./components/Bills";
 import Settings from "./components/Settings";
+import HotelAnalytics from "./components/HotelAnalytics";
 
 function App() {
   return (
@@ -17,7 +18,7 @@ function App() {
         <div className="container mx-auto px-4 py-3 flex justify-between items-center">
           <h1 className="text-white font-bold text-xl">Restaurant Dashboard</h1>
 
-          <nav className="space-x-4">
+          <nav className="space-x-3">
             <NavLink
               to="/admin"
               className={({ isActive }) =>
@@ -85,6 +86,7 @@ function App() {
           <Route path="/running-tables" element={<RunningTables />} />
           <Route path="/bills" element={<UnpaidBills/>}/>
           <Route path="/settings" element={<Settings/>}/>
+          <Route path="/hotelAnalytics" element={<HotelAnalytics/>}/>
 
         </Routes>
       </main>

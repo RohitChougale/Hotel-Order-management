@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { collection, doc, getDocs, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { db } from "../firebase";
-import * as htmlToImage from "html-to-image";
 
 interface Item {
   name: string;
@@ -12,6 +11,7 @@ interface Item {
 interface HotelInfo {
   name: string;
   greeting: string;
+  logo?: string; // optional logo URL
 }
 
 interface Bill {
@@ -28,8 +28,8 @@ export default function UnpaidBills() {
   const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(true);
   const [hotelInfo, setHotelInfo] = useState<HotelInfo | null>(null);
-  const [billImage, setBillImage] = useState<string | null>(null);
-  const [currentBill, setCurrentBill] = useState<Bill | null>(null);
+  const [printBillId, setPrintBillId] = useState<string | null>(null);
+  const [printing, setPrinting] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -40,7 +40,6 @@ export default function UnpaidBills() {
         setHotelInfo(doc.data() as HotelInfo);
       }
     };
-
     fetchHotelInfo();
   }, []);
 
@@ -66,26 +65,158 @@ export default function UnpaidBills() {
     return () => unsubscribe();
   }, []);
 
-  const printBill = async (bill: Bill) => {
-    setCurrentBill(bill);
-    await new Promise((res) => setTimeout(res, 100)); // ensure DOM is updated
-
-    if (!printRef.current) return alert("Bill layout not ready.");
-
-    try {
-      const dataUrl = await htmlToImage.toPng(printRef.current);
-      setBillImage(dataUrl);
-
+  useEffect(() => {
+    if (printing && printBillId && !bills.find((b) => b.id === printBillId)) {
+      // Bill has been removed
       setTimeout(() => {
-        window.print();
-      }, 500);
+        if (printRef.current) {
+          const originalContents = document.body.innerHTML;
+          const printContents = printRef.current.innerHTML;
 
-      await updateDoc(doc(db, "bills", bill.id), { paid: "yes" });
-    } catch (err) {
-      console.error("Image generation error:", err);
-      alert("Could not prepare bill for printing.");
+          document.body.innerHTML = printContents;
+          window.print();
+          document.body.innerHTML = originalContents;
+          window.location.reload(); // Ensure app reinitializes if needed
+        }
+
+        setPrintBillId(null);
+        setPrinting(false);
+      }, 100);
     }
-  };
+  }, [bills, printing, printBillId]);
+
+  const handlePrint = async (bill: Bill) => {
+  const printWindow = window.open('', '_blank', 'width=300,height=600');
+  if (!printWindow) {
+    alert("Popup blocked! Please allow popups for this site.");
+    return;
+  }
+
+  const billHTML = `
+    <html>
+      <head>
+        <style>
+          body {
+            width: 250px;
+            font-family: 'Courier New', monospace;
+            font-size: 15px;
+            padding: 12px;
+            margin: 0;
+            background: #fff;
+            color: #000;
+          }
+
+          h2 {
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 4px;
+          }
+
+          .greeting {
+            font-size: 14px;
+            text-align: center;
+            margin-bottom: 8px;
+            font-weight: 600;
+          }
+
+          .logo {
+            display: block;
+            margin: 0 auto 8px;
+            max-width: 80px;
+          }
+
+          hr {
+            border: none;
+            border-top: 1px dashed black;
+            margin: 10px 0;
+          }
+
+          .section-title {
+            font-size: 14px;
+            font-weight: bold;
+            margin: 6px 0;
+          }
+
+          .line-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 4px 0;
+          }
+
+          .totals {
+            font-weight: bold;
+            margin-top: 8px;
+            font-size: 16px;
+          }
+
+          .thankyou {
+            text-align: center;
+            font-size: 13px;
+            font-weight: bold;
+            margin-top: 12px;
+          }
+        </style>
+      </head>
+      <body>
+        ${hotelInfo?.logo ? `<img class="logo" src="${hotelInfo.logo}" alt="Logo" />` : ''}
+        <h2>${hotelInfo?.name?.toUpperCase() || "HOTEL NAME"}</h2>
+        <div class="greeting">${hotelInfo?.greeting || "Thank you! Visit Again"}</div>
+
+        <hr />
+
+        <div class="section-title">🧾 Table: ${bill.table}</div>
+
+        ${bill.items.map(item => `
+          <div class="line-item">
+            <span>${item.name} x${item.quantity}</span>
+            <span>₹${(item.price * item.quantity).toFixed(2)}</span>
+          </div>
+        `).join('')}
+
+        <hr />
+
+        <div class="line-item">
+          <span>AC Charge</span>
+          <span>₹${bill.acCharge.toFixed(2)}</span>
+        </div>
+        <div class="line-item">
+          <span>GST</span>
+          <span>₹${bill.gstAmount.toFixed(2)}</span>
+        </div>
+        <div class="line-item totals">
+          <span>Total</span>
+          <span>₹${bill.total.toFixed(2)}</span>
+        </div>
+
+        <hr />
+
+        <div class="thankyou">🙏 Thanks for your visit!</div>
+
+        <script>
+          window.onload = function() {
+            window.print();
+            window.onafterprint = function() {
+              window.close();
+            };
+          }
+        </script>
+      </body>
+    </html>
+  `;
+
+  printWindow.document.write(billHTML);
+  printWindow.document.close();
+
+  // Update bill status after print triggers
+  setTimeout(async () => {
+    await updateDoc(doc(db, "bills", bill.id), { paid: "yes" });
+  }, 500);
+};
+
+
+
+  const getPrintableBill = () => bills.find((b) => b.id === printBillId);
 
   return (
     <div className="p-6">
@@ -116,7 +247,7 @@ export default function UnpaidBills() {
               </div>
 
               <button
-                onClick={() => printBill(bill)}
+                onClick={() => handlePrint(bill)}
                 className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
               >
                 🖨️ Print Bill
@@ -126,35 +257,40 @@ export default function UnpaidBills() {
         </div>
       )}
 
-      {/* Hidden Printable Content */}
+      {/* Hidden 2-inch print format */}
       <div style={{ position: "absolute", left: "-10000px", top: 0 }}>
         <div
           ref={printRef}
           style={{
             width: "250px",
             padding: "10px",
-            fontFamily: "monospace",
-            fontSize: "12px",
+            fontFamily: "'Courier New', monospace",
+            fontSize: "14px",
             background: "#fff",
           }}
         >
-          {currentBill && (
+          {getPrintableBill() && (
             <>
-              <div style={{ textAlign: "center" }}>
-                <h2 style={{ fontSize: "16px", fontWeight: "bold", margin: "4px 0" }}>
+              <div style={{ textAlign: "center", marginBottom: 6 }}>
+                {hotelInfo?.logo && (
+                  <img
+                    src={hotelInfo.logo}
+                    alt="Hotel Logo"
+                    style={{ width: "80px", marginBottom: "6px" }}
+                  />
+                )}
+                <h2 style={{ fontSize: "18px", fontWeight: "bold" }}>
                   {hotelInfo?.name?.toUpperCase() || "HOTEL NAME"}
                 </h2>
-                <p style={{ fontWeight: "bold", fontSize: "13px", margin: "2px 0" }}>
+                <p style={{ fontWeight: "bold", fontSize: "14px" }}>
                   {hotelInfo?.greeting || "Thank you! Visit Again"}
                 </p>
               </div>
-              <hr style={{ borderTop: "1px dashed black", margin: "6px 0" }} />
-              <div style={{ marginBottom: "6px" }}>
-                <strong>🧾 Table: {currentBill.table}</strong>
-              </div>
-              <ul style={{ listStyle: "none", padding: 0, marginBottom: "6px" }}>
-                {currentBill.items.map((item, i) => (
-                  <li key={i} style={{ display: "flex", justifyContent: "space-between" }}>
+              <hr style={{ borderTop: "1px dashed black", marginBottom: 6 }} />
+              <p><strong>Table:</strong> {getPrintableBill()?.table}</p>
+              <ul style={{ listStyle: "none", padding: 0 }}>
+                {getPrintableBill()?.items.map((item, idx) => (
+                  <li key={idx} style={{ display: "flex", justifyContent: "space-between" }}>
                     <span>{item.name} x {item.quantity}</span>
                     <span>₹{(item.price * item.quantity).toFixed(2)}</span>
                   </li>
@@ -163,46 +299,30 @@ export default function UnpaidBills() {
               <hr style={{ borderTop: "1px dashed black", margin: "6px 0" }} />
               <div style={{ fontWeight: "bold" }}>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>AC Charge:</span><span>₹{currentBill.acCharge.toFixed(2)}</span>
+                  <span>AC:</span><span>₹{getPrintableBill()?.acCharge.toFixed(2)}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span>GST:</span><span>₹{currentBill.gstAmount.toFixed(2)}</span>
+                  <span>GST:</span><span>₹{getPrintableBill()?.gstAmount.toFixed(2)}</span>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px", marginTop: "6px" }}>
-                  <span>TOTAL:</span><span>₹{currentBill.total.toFixed(2)}</span>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: "16px",
+                    marginTop: "6px",
+                  }}
+                >
+                  <span>Total:</span><span>₹{getPrintableBill()?.total.toFixed(2)}</span>
                 </div>
               </div>
-              <hr style={{ borderTop: "1px dashed black", margin: "8px 0" }} />
-              <p style={{ textAlign: "center", fontSize: "12px", fontWeight: "bold" }}>
+              <hr style={{ borderTop: "1px dashed black", margin: "6px 0" }} />
+              <p style={{ textAlign: "center", fontWeight: "bold", fontSize: "14px" }}>
                 Thanks for your visit!
               </p>
             </>
           )}
         </div>
       </div>
-
-      {/* Fullscreen Preview of Bill Image */}
-      {billImage && (
-        <div
-          onClick={() => setBillImage(null)}
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "#fff",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexDirection: "column",
-          }}
-        >
-          <p style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>Tap anywhere to close</p>
-          <img src={billImage} alt="Printable Bill" style={{ maxWidth: "100%", maxHeight: "100%" }} />
-        </div>
-      )}
     </div>
   );
 }

@@ -1,18 +1,13 @@
 import {
   addDoc,
   collection,
-  doc,
-  getDocs,
-  query,
-  updateDoc,
-  where,
-  Timestamp,
 } from "firebase/firestore";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import MenuForm from "../components/MenuForm";
 import { db } from "../firebase";
 import OrderSummary from "../components/OrderSummary";
+import HotelAnalytics from "../components/HotelAnalytics";
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -22,7 +17,7 @@ export default function Admin() {
     name: string;
     acPrice: number;
     nonAcPrice: number;
-    nameMarathi:string;
+    nameMarathi: string;
     type: string;
   }) => {
     await addDoc(collection(db, "menu"), data);
@@ -30,51 +25,57 @@ export default function Admin() {
   };
 
   return (
-    <div className="p-6 space-y-10 bg-gradient-to-b from-gray-100 to-gray-300 min-h-screen">
-      <h2 className="text-4xl font-extrabold text-center text-gray-900 tracking-wide">
-        🛠️ Admin Panel
-      </h2>
+    <div className="min-h-screen bg-gradient-to-br from-blue-100 via-white to-green-100 p-6">
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-4xl font-extrabold text-center text-gray-800 mb-8">
+          🛠️ Admin Dashboard
+        </h1>
 
-      {/* MENU MANAGEMENT SECTION */}
-      <section className="max-w-2xl mx-auto space-y-4">
-        <h3 className="text-2xl font-semibold text-green-700">
-          📋 Menu Management
-        </h3>
-
-        <div className="flex gap-4 flex-wrap">
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="bg-green-600 text-white px-5 py-2.5 rounded-lg hover:bg-green-700 font-semibold shadow"
-          >
-            ➕ Add Menu Item
-          </button>
-          <button
-            onClick={() => navigate("/adminMenu")}
-            className="bg-gray-800 text-white px-5 py-2.5 rounded-lg hover:bg-gray-900 font-semibold shadow"
-          >
-            📄 View Menu List
-          </button>
-          <button
-            onClick={() => navigate("/orderSummary")}
-            className="bg-purple-600 text-white px-5 py-2.5 rounded-lg hover:bg-purple-700 font-semibold shadow"
-          >
-            📊 Order Summary
-          </button>
-
-          <button
-            onClick={() => navigate("/settings")}
-            className="bg-purple-600 text-white px-5 py-2.5 rounded-lg hover:bg-purple-700 font-semibold shadow"
-          >
-            Settings
-          </button>
+        {/* Hotel Analytics */}
+        <div className="mb-12">
+          <HotelAnalytics />
         </div>
 
-        {showAddForm && (
-          <div className="border-2 border-dashed p-6 rounded-xl bg-white shadow-lg mt-4">
-            <MenuForm onSubmit={handleAddMenu} />
+        {/* Menu Management Section */}
+        <section className="bg-white p-6 rounded-xl shadow-md">
+          <h2 className="text-2xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+            📋 Menu Management
+          </h2>
+
+          <div className="flex flex-wrap gap-4 mb-6">
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="bg-green-600 hover:bg-green-700 text-white font-semibold px-5 py-2.5 rounded-lg shadow transition"
+            >
+              ➕ Add Menu Item
+            </button>
+            <button
+              onClick={() => navigate("/adminMenu")}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-lg shadow transition"
+            >
+              📄 View Menu List
+            </button>
+            <button
+              onClick={() => navigate("/orderSummary")}
+              className="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-5 py-2.5 rounded-lg shadow transition"
+            >
+              📊 Order Summary
+            </button>
+            <button
+              onClick={() => navigate("/settings")}
+              className="bg-gray-700 hover:bg-gray-800 text-white font-semibold px-5 py-2.5 rounded-lg shadow transition"
+            >
+              ⚙️ Settings
+            </button>
           </div>
-        )}
-      </section>
+
+          {showAddForm && (
+            <div className="border-2 border-dashed border-gray-300 p-6 rounded-lg bg-gray-50 shadow-inner">
+              <MenuForm onSubmit={handleAddMenu} />
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
