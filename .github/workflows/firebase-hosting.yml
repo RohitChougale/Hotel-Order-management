@@ -1,0 +1,32 @@
+name: Deploy React App to Firebase Hosting
+ 
+on:
+  push:
+    branches:
+      - main  # deploy only when pushing to main branch
+ 
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+ 
+    steps:
+      - name: ⬇️ Clone repo
+        uses: actions/checkout@v3
+ 
+      - name: ⚙️ Set up Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 22.16.0
+ 
+      - name: 📦 Install dependencies
+        run: npm install
+ 
+      - name: 🏗️ Build React app
+        run: npm run build
+ 
+      - name: 🚀 Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: "${{ secrets.GITHUB_TOKEN }}"
+          firebaseServiceAccount: "${{ secrets.FIREBASE_TOKEN }}"
+          channelId: live
