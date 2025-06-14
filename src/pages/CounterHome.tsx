@@ -20,7 +20,7 @@ export default function CounterHome() {
           </button>
 
           <button
-            onClick={() => navigate("/counter-order")}
+            onClick={() => navigate("/counterOrder")}
             className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl text-lg font-semibold shadow transition"
           >
             🧾 Take Order

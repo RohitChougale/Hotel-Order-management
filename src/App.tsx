@@ -13,6 +13,7 @@ import LandingPage from "./pages/LandingPage";
 import CounterHome from "./pages/CounterHome";
 import CounterAdmin from "./components/CounterAdmin";
 import CounterItemList from "./components/CounterItemList";
+import CounterOrder from "./components/CounterOrder";
 
 function App() {
   return (
@@ -36,6 +37,7 @@ function App() {
           <Route path="/counterHome" element={<CounterHome/>}/>
           <Route path="/counterAdmin" element={<CounterAdmin/>}/>
           <Route path="/counterItemList" element={<CounterItemList/>}/>
+          <Route path="/counterOrder" element={<CounterOrder/>}/>
 
         </Routes>
       </main>
