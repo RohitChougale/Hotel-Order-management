@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { collection, getDocs, deleteDoc, doc, addDoc } from "firebase/firestore";
+import {
+  collection,
+  onSnapshot,
+  deleteDoc,
+  doc,
+  addDoc,
+} from "firebase/firestore";
 import { db } from "../firebase";
 
 interface Item {
@@ -23,16 +29,26 @@ export default function RunningTables() {
   const [loading, setLoading] = useState(true);
   const tableRefs = useRef<{ [key: string]: HTMLLIElement | null }>({});
 
-  const fetchRunningTables = async () => {
-    setLoading(true);
-    const snapshot = await getDocs(collection(db, "runningTables"));
-    const data = snapshot.docs.map((docSnap) => ({
-      id: docSnap.id,
-      ...(docSnap.data() as Omit<RunningTable, "id">),
-    }));
-    setTables(data);
-    setLoading(false);
-  };
+  // Realtime fetch
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, "runningTables"),
+      (snapshot) => {
+        const data = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...(docSnap.data() as Omit<RunningTable, "id">),
+        }));
+        setTables(data);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Realtime fetch failed:", error);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe(); // cleanup on unmount
+  }, []);
 
   const handleCloseTable = async (table: RunningTable) => {
     try {
@@ -44,7 +60,6 @@ export default function RunningTables() {
       await deleteDoc(doc(db, "runningTables", table.id));
       alert(`Table ${table.table} closed and moved to billing!`);
       setExpandedId(null);
-      fetchRunningTables();
     } catch (err) {
       console.error("Error closing table:", err);
       alert("Failed to close table. Try again.");
@@ -52,13 +67,11 @@ export default function RunningTables() {
   };
 
   useEffect(() => {
-    fetchRunningTables();
-  }, []);
-
-  useEffect(() => {
-    // Scroll to selected table
     if (expandedId && tableRefs.current[expandedId]) {
-      tableRefs.current[expandedId]?.scrollIntoView({ behavior: "smooth", block: "start" });
+      tableRefs.current[expandedId]?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
     }
   }, [expandedId]);
 
@@ -66,7 +79,6 @@ export default function RunningTables() {
 
   return (
     <div className="flex h-screen">
-      {/* Sidebar */}
       <div className="w-72 bg-gray-100 border-r p-4 overflow-y-auto">
         <h2 className="text-xl font-bold mb-4">🧾 Running Tables</h2>
         {tables.length === 0 ? (
@@ -92,7 +104,6 @@ export default function RunningTables() {
                   Table {table.table}
                 </button>
 
-                {/* Dropdown with animation */}
                 <div
                   className={`overflow-hidden transition-all duration-300 ease-in-out ${
                     expandedId === table.id ? "max-h-96 mt-2" : "max-h-0"
