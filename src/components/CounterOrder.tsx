@@ -135,12 +135,12 @@ export default function CounterOrder() {
       {orderPlaced && printData && (
         <div className="print-only p-4 mt-10" ref={printRef}>
           <div className="text-center text-sm border p-4 w-72 mx-auto bg-white rounded shadow">
-            <h2 className="font-bold text-lg mb-2">🍽️ Your Order</h2>
-            <p className="text-xs mb-1">Date: {printData.date}</p>
-            <p className="text-xs mb-1">Coupon: {printData.couponId}</p>
+            <h2 className="font-bold text-3xl mb-2">🍽️ Your Order</h2>
+            <p className="text-2xl mb-1">Date: {printData.date}</p>
+            <p className="text-2xl mb-1">Coupon: {printData.couponId}</p>
             <hr className="my-2" />
             {printData.items.map((item: any, idx: number) => (
-              <div key={idx} className="flex justify-between text-sm mb-1">
+              <div key={idx} className="flex justify-between text-2xl mb-1">
                 <span>
                   {item.nameMarathi} × {item.quantity}
                 </span>
@@ -148,8 +148,8 @@ export default function CounterOrder() {
               </div>
             ))}
             <hr className="my-2" />
-            <p className="font-bold">Total: ₹{printData.subTotal.toFixed(2)}</p>
-            <p className="text-xs mt-2">🙏 Thank you! Visit Again</p>
+            <p className="font-bold text-2xl">Total: ₹{printData.subTotal.toFixed(2)}</p>
+            <p className="text-lg mt-2">🙏 Thank you! Visit Again</p>
           </div>
         </div>
       )}
