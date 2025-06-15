@@ -4,6 +4,7 @@ import { db } from "../firebase";
 import OrderForm from "../components/OrderForm";
 import RunningTables from "../components/RunningTables"; // ✅ Import running tables component
 import { Menu } from "lucide-react"; // Optional: for 3-dot icon
+import TableSystemHeader from "../components/TableSystemHeader";
 
 interface Order {
   id: string;
@@ -68,6 +69,8 @@ function Staff() {
   };
 
   return (
+    <div>
+      <TableSystemHeader/>
     <div className="flex min-h-screen">
       {/* Sidebar */}
       <aside
@@ -84,12 +87,12 @@ function Staff() {
         </div>
         <RunningTables />
       </aside>
-<div className="md:hidden flex justify-start items-start h-12 px-0">
+<div className="md:hidden flex justify-start items-start h-12 px-0 mt-5">
   <button
     onClick={() => setShowSidebar(true)}
     className="p-2 rounded-full bg-gray-200 text-gray-800"
   >
-    <Menu size={20} />
+    <Menu size={10} />
   </button>
 </div>
 
@@ -154,6 +157,7 @@ function Staff() {
           <OrderForm />
         </div>
       </main>
+    </div>
     </div>
   );
 }

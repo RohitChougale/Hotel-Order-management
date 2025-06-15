@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { collection, doc, getDocs, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { db } from "../firebase";
+import TableSystemHeader from "./TableSystemHeader";
 
 interface Item {
   name: string;
@@ -219,6 +220,8 @@ export default function UnpaidBills() {
   const getPrintableBill = () => bills.find((b) => b.id === printBillId);
 
   return (
+    <div>
+      <TableSystemHeader/>
     <div className="p-6">
       <h2 className="text-2xl font-bold mb-4">🧾 Unpaid Bills</h2>
 
@@ -323,6 +326,7 @@ export default function UnpaidBills() {
           )}
         </div>
       </div>
+    </div>
     </div>
   );
 }
