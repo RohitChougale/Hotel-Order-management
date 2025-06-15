@@ -44,7 +44,7 @@ export default function Home() {
                 }`
               }
             >
-              Staff
+              Order
             </NavLink>
 
             <NavLink
