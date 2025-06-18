@@ -14,6 +14,7 @@ import CounterHome from "./pages/CounterHome";
 import CounterAdmin from "./components/CounterAdmin";
 import CounterItemList from "./components/CounterItemList";
 import CounterOrder from "./components/CounterOrder";
+import RunningCoupons from "./components/RunningCoupons";
 
 function App() {
   return (
@@ -38,6 +39,7 @@ function App() {
           <Route path="/counterAdmin" element={<CounterAdmin/>}/>
           <Route path="/counterItemList" element={<CounterItemList/>}/>
           <Route path="/counterOrder" element={<CounterOrder/>}/>
+          <Route path="/runningCoupons" element={<RunningCoupons/>}/>
 
         </Routes>
       </main>
