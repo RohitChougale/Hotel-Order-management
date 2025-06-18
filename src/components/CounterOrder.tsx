@@ -140,7 +140,7 @@ export default function CounterOrder() {
         </h1>
         <button
           onClick={() => navigate("/runningCoupons")}
-          className="bg-gray-600 text-white px-5 py-2 rounded-lg shadow hover:bg-orange-700 font-semibold transition"
+          className="bg-green-600 text-white px-5 py-2 rounded-lg shadow hover:bg-orange-700 font-semibold transition"
         >
           🔖 Running Coupons
         </button>
