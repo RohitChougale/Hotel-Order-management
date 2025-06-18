@@ -11,6 +11,14 @@ import {
 import { db } from "../firebase";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
+declare global {
+  interface Window {
+    ReactNativeWebView?: {
+      postMessage: (message: string) => void;
+    };
+  }
+}
+
 
 export default function CounterOrder() {
   type CounterItem = {
@@ -81,55 +89,63 @@ export default function CounterOrder() {
     return newCouponNumber;
   };
 
-  const handleOrder = async () => {
-    const filteredItems = items
-      .filter((item) => quantities[item.id] > 0)
-      .map((item) => ({
-        name: item.name,
-        nameMarathi: item.nameMarathi,
-        price: item.price,
-        quantity: quantities[item.id],
-        total: item.price * quantities[item.id],
-      }));
+ const handleOrder = async () => {
+  const filteredItems = items
+    .filter((item) => quantities[item.id] > 0)
+    .map((item) => ({
+      name: item.name,
+      nameMarathi: item.nameMarathi,
+      price: item.price,
+      quantity: quantities[item.id],
+      total: item.price * quantities[item.id],
+    }));
 
-    if (filteredItems.length === 0) {
-      alert("Please add at least one item.");
-      return;
-    }
+  if (filteredItems.length === 0) {
+    alert("Please add at least one item.");
+    return;
+  }
 
-    const timestamp = Timestamp.now();
-    const couponNumber = await getNextCouponNumber();
-    const couponId = `COUPON-${String(couponNumber).padStart(3, "0")}`;
-    const subTotal = filteredItems.reduce((sum, item) => sum + item.total, 0);
+  const timestamp = Timestamp.now();
+  const couponNumber = await getNextCouponNumber();
+  const couponId = `COUPON-${String(couponNumber).padStart(3, "0")}`;
+  const subTotal = filteredItems.reduce((sum, item) => sum + item.total, 0);
 
-    const orderData = {
-      items: filteredItems,
-      couponId,
-      subTotal,
-      timestamp,
-    };
+  const orderData = {
+    items: filteredItems,
+    couponId,
+    subTotal,
+    timestamp,
+  };
 
-    await addDoc(collection(db, "counterOrder"), orderData);
-    await addDoc(collection(db, "counterbill"), orderData);
+  await addDoc(collection(db, "counterOrder"), orderData);
+  await addDoc(collection(db, "counterbill"), orderData);
 
-    const printPayload = {
-      ...orderData,
-      date: dayjs().format("DD-MM-YYYY HH:mm"),
-    };
+  const printPayload = {
+    ...orderData,
+    hotelName: hotelInfo?.hotelName || '',
+    date: dayjs().format("DD-MM-YYYY HH:mm"),
+  };
 
-    setPrintData(printPayload);
-    setOrderPlaced(true);
+  setPrintData(printPayload);
+  setOrderPlaced(true);
 
+  // 👉 Send data to React Native app if inside WebView
+  if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === "function") {
+    window.ReactNativeWebView.postMessage(JSON.stringify({ type: "print", payload: printPayload }));
+  } else {
+    // fallback: browser print
     setTimeout(() => {
       window.print();
     }, 300);
+  }
 
-    setTimeout(() => {
-      setQuantities({});
-      setOrderPlaced(false);
-      setPrintData(null);
-    }, 1000);
-  };
+  setTimeout(() => {
+    setQuantities({});
+    setOrderPlaced(false);
+    setPrintData(null);
+  }, 1000);
+};
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-orange-100 p-4 sm:p-6">
