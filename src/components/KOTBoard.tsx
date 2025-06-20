@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { collection, doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
+import { getAuth } from "firebase/auth";
 
 interface Order {
   id: string;
@@ -14,9 +15,11 @@ export default function KOTBoard() {
   const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
   const prevOrderIds = useRef<Set<string>>(new Set());
   const bellRef = useRef<HTMLAudioElement | null>(null);
+   const auth = getAuth();
+  const currentUser = auth.currentUser;
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, "orders"), (snapshot) => {
+    const unsub = onSnapshot(collection(db, "users", currentUser!.uid, "orders"), (snapshot) => {
       const list = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...(doc.data() as Omit<Order, "id">),
@@ -54,7 +57,7 @@ export default function KOTBoard() {
   }, []);
 
   const markPrepared = async (id: string) => {
-    const orderRef = doc(db, "orders", id);
+    const orderRef = doc(db, "users", currentUser!.uid, "orders", id);
     await updateDoc(orderRef, { status: "prepared" });
   };
 

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { db } from "../firebase";
 import { collection, addDoc, doc, getDoc, setDoc } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
+import { getAuth } from "firebase/auth";
 
 export default function CounterAdmin() {
   const navigate = useNavigate();
@@ -11,6 +12,8 @@ export default function CounterAdmin() {
     nameMarathi: "",
     price: "",
   });
+   const auth = getAuth();
+  const currentUser = auth.currentUser;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setItem((prev) => ({
@@ -25,7 +28,7 @@ export default function CounterAdmin() {
       return;
     }
 
-    await addDoc(collection(db, "counterItems"), {
+    await addDoc(collection(db, "users", currentUser!.uid, "counterItems"), {
       ...item,
       price: parseFloat(item.price),
     });
@@ -53,7 +56,7 @@ export default function CounterAdmin() {
 
   // Open modal and fetch hotel info if exists
   const openHotelModal = async () => {
-    const docRef = doc(db, "counterHotelInfo", "info");
+    const docRef = doc(db, "users", currentUser!.uid, "counterHotelInfo", "info");
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
       setHotelInfo(docSnap.data() as any);
@@ -71,7 +74,7 @@ export default function CounterAdmin() {
 
   // Save or update hotel info
   const saveHotelInfo = async () => {
-  await setDoc(doc(db, "counterHotelInfo", "info"), {
+  await setDoc(doc(db, "users", currentUser!.uid, "counterHotelInfo", "info"), {
     ...hotelInfo,
     gstPercentage: hotelInfo.gstPercentage
       ? parseFloat(hotelInfo.gstPercentage)
@@ -102,6 +105,12 @@ export default function CounterAdmin() {
           className="px-8 py-4 bg-teal-600 text-white text-lg rounded-xl hover:bg-teal-700 transition-all duration-300 font-semibold shadow-lg"
         >
           📋 View Items
+        </button>
+        <button
+          onClick={() => navigate("/counterAnalytics")}
+          className="px-8 py-4 bg-teal-600 text-white text-lg rounded-xl hover:bg-teal-700 transition-all duration-300 font-semibold shadow-lg"
+        >
+          📊 Analytics
         </button>
 
         <button

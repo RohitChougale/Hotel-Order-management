@@ -7,6 +7,7 @@ import {
   addDoc,
 } from "firebase/firestore";
 import { db } from "../firebase";
+import { getAuth } from "firebase/auth";
 
 interface Item {
   name: string;
@@ -28,11 +29,13 @@ export default function RunningTables() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const tableRefs = useRef<{ [key: string]: HTMLLIElement | null }>({});
+   const auth = getAuth();
+  const currentUser = auth.currentUser;
 
   // Realtime fetch
   useEffect(() => {
     const unsubscribe = onSnapshot(
-      collection(db, "runningTables"),
+      collection(db, "users", currentUser!.uid, "runningTables"),
       (snapshot) => {
         const data = snapshot.docs.map((docSnap) => ({
           id: docSnap.id,
@@ -52,12 +55,12 @@ export default function RunningTables() {
 
   const handleCloseTable = async (table: RunningTable) => {
     try {
-      await addDoc(collection(db, "bills"), {
+      await addDoc(collection(db, "users", currentUser!.uid, "bills"), {
         ...table,
         paid: "no",
         closedAt: new Date(),
       });
-      await deleteDoc(doc(db, "runningTables", table.id));
+      await deleteDoc(doc(db, "users", currentUser!.uid, "runningTables", table.id));
       alert(`Table ${table.table} closed and moved to billing!`);
       setExpandedId(null);
     } catch (err) {

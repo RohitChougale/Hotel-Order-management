@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import { db } from "../firebase";
 import { Switch } from "@headlessui/react";
 import { Popover } from "@headlessui/react";
+import { getAuth } from "firebase/auth";
 
 interface HotelInfo {
   name: string;
@@ -33,6 +34,8 @@ export default function Settings() {
   const [existingDocId, setExistingDocId] = useState<string | null>(null);
   const [showHotelEditModal, setShowHotelEditModal] = useState(false);
   const [showStaffModal, setShowStaffModal] = useState(false);
+   const auth = getAuth();
+  const currentUser = auth.currentUser;
 
   const [hotelInfo, setHotelInfo] = useState<HotelInfo>({
     name: "",
@@ -55,7 +58,7 @@ export default function Settings() {
 
   useEffect(() => {
     const fetchHotelInfo = async () => {
-      const snapshot = await getDocs(collection(db, "hotelinfo"));
+      const snapshot = await getDocs(collection(db, "users", currentUser!.uid, "hotelinfo"));
       if (!snapshot.empty) {
         const docSnap = snapshot.docs[0];
         setHotelInfo(docSnap.data() as HotelInfo);
@@ -64,7 +67,7 @@ export default function Settings() {
     };
 
     const fetchSettings = async () => {
-      const snap = await getDocs(collection(db, "settings"));
+      const snap = await getDocs(collection(db, "users", currentUser!.uid, "settings"));
       if (!snap.empty) {
         const data = snap.docs[0].data();
         setSettings({
@@ -73,12 +76,12 @@ export default function Settings() {
           darkMode: data.darkMode || false,
         });
       } else {
-        await addDoc(collection(db, "settings"), settings);
+        await addDoc(collection(db, "users", currentUser!.uid, "settings"), settings);
       }
     };
 
     const fetchStaff = () => {
-      onSnapshot(collection(db, "staff"), (snapshot) => {
+      onSnapshot(collection(db, "users", currentUser!.uid, "staff"), (snapshot) => {
         const list = snapshot.docs.map((doc) => doc.data().name);
         setStaffList(list);
       });
@@ -92,11 +95,11 @@ export default function Settings() {
   const handleHotelInfoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (existingDocId) {
-      await updateDoc(doc(db, "hotelinfo", existingDocId), hotelInfo as any);
+      await updateDoc(doc(db, "users", currentUser!.uid, "hotelinfo", existingDocId), hotelInfo as any);
       alert("Hotel info updated successfully.");
       setShowHotelEditModal(false);
     } else {
-      const newDocRef = await addDoc(collection(db, "hotelinfo"), hotelInfo);
+      const newDocRef = await addDoc(collection(db, "users", currentUser!.uid, "hotelinfo"), hotelInfo);
       setExistingDocId(newDocRef.id);
       alert("Hotel info saved successfully.");
     }
@@ -106,23 +109,23 @@ export default function Settings() {
     const updated = { ...settings, [key]: !settings[key] };
     setSettings(updated);
 
-    const snap = await getDocs(collection(db, "settings"));
+    const snap = await getDocs(collection(db, "users", currentUser!.uid, "settings"));
     if (!snap.empty) {
-      await updateDoc(doc(db, "settings", snap.docs[0].id), updated);
+      await updateDoc(doc(db, "users", currentUser!.uid, "settings", snap.docs[0].id), updated);
     } else {
-      await addDoc(collection(db, "settings"), updated);
+      await addDoc(collection(db, "users", currentUser!.uid, "settings"), updated);
     }
   };
 
   const addStaff = async () => {
     if (newStaffName.trim()) {
-      await addDoc(collection(db, "staff"), { name: newStaffName.trim() });
+      await addDoc(collection(db, "users", currentUser!.uid, "staff"), { name: newStaffName.trim() });
       setNewStaffName("");
     }
   };
 
   const deleteStaff = async (nameToDelete: string) => {
-    const snap = await getDocs(collection(db, "staff"));
+    const snap = await getDocs(collection(db, "users", currentUser!.uid, "staff"));
     snap.docs.forEach((docSnap) => {
       if (docSnap.data().name === nameToDelete) {
         deleteDoc(doc(db, "staff", docSnap.id));

@@ -7,14 +7,17 @@ import {
   updateDoc,
   deleteDoc,
 } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 
 export default function CounterItemList() {
   const [items, setItems] = useState([]);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", nameMarathi: "", price: "" });
+   const auth = getAuth();
+  const currentUser = auth.currentUser;
 
   const fetchItems = async () => {
-    const snapshot = await getDocs(collection(db, "counterItems"));
+    const snapshot = await getDocs(collection(db, "users", currentUser!.uid, "counterItems"));
     const data = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
@@ -37,7 +40,7 @@ export default function CounterItemList() {
 
   const handleUpdate = async () => {
     if (editId) {
-      await updateDoc(doc(db, "counterItems", editId), {
+      await updateDoc(doc(db, "users", currentUser!.uid, "counterItems", editId), {
         ...form,
         price: parseFloat(form.price),
       });
@@ -48,7 +51,7 @@ export default function CounterItemList() {
 
   const handleDelete = async (id: string) => {
     if (confirm("Are you sure you want to delete this item?")) {
-      await deleteDoc(doc(db, "counterItems", id));
+      await deleteDoc(doc(db, "users", currentUser!.uid, "counterItems", id));
       fetchItems();
     }
   };

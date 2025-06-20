@@ -11,6 +11,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import dayjs from "dayjs";
+import { getAuth } from "firebase/auth";
 
 // Type for each chart entry
 interface ChartEntry {
@@ -22,10 +23,12 @@ const HotelAnalytics = () => {
   const [data, setData] = useState<ChartEntry[]>([]);
   const [month, setMonth] = useState<number>(dayjs().month() + 1); // dayjs is 0-indexed, so +1
   const [year, setYear] = useState<number>(dayjs().year());
+   const auth = getAuth();
+  const currentUser = auth.currentUser;
 
   useEffect(() => {
     const fetchData = async () => {
-      const snapshot = await getDocs(collection(db, "bills"));
+      const snapshot = await getDocs(collection(db, "users", currentUser!.uid, "bills"));
 
       const list = snapshot.docs
         .map((doc) => doc.data())
