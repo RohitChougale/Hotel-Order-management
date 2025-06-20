@@ -1,6 +1,7 @@
 import { collection, getDocs, query, Timestamp, where } from "firebase/firestore";
 import { useState } from "react";
 import { db } from "../firebase";
+import { getAuth } from "firebase/auth";
 
 export default function OrderSummary(){
      const [selectedDate, setSelectedDate] = useState<string>("");
@@ -9,13 +10,15 @@ export default function OrderSummary(){
         const fetchOrdersByDate = async () => {
     if (!selectedDate) return;
     setIsLoadingOrders(true);
+     const auth = getAuth();
+  const currentUser = auth.currentUser;
 
     const start = new Date(selectedDate);
     const end = new Date(start);
     end.setDate(end.getDate() + 1);
 
     const q = query(
-      collection(db, "orders"),
+      collection(db, "users", currentUser!.uid, "orders"),
       where("createdAt", ">=", Timestamp.fromDate(start)),
       where("createdAt", "<", Timestamp.fromDate(end))
     );

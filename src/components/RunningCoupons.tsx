@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import { collection, deleteDoc, doc, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import dayjs from "dayjs";
+import { getAuth } from "firebase/auth";
 
 export default function RunningCoupons() {
   const [orders, setOrders] = useState<any[]>([]);
+   const auth = getAuth();
+  const currentUser = auth.currentUser;
 
   const fetchOrders = async () => {
-    const snapshot = await getDocs(collection(db, "counterOrder"));
+    const snapshot = await getDocs(collection(db, "users", currentUser!.uid, "counterOrder"));
     const list = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
@@ -21,7 +24,7 @@ export default function RunningCoupons() {
 
   const handleCloseCoupon = async (id: string) => {
     if (confirm("Are you sure you want to close this coupon?")) {
-      await deleteDoc(doc(db, "counterOrder", id));
+      await deleteDoc(doc(db, "users", currentUser!.uid, "counterOrder", id));
       fetchOrders(); // Refresh the list
     }
   };

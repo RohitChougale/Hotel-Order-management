@@ -11,6 +11,7 @@ import {
 import { db } from "../firebase";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
+import { getAuth } from "firebase/auth";
 declare global {
   interface Window {
     ReactNativeWebView?: {
@@ -34,12 +35,14 @@ export default function CounterOrder() {
   const [printData, setPrintData] = useState<any>(null);
   const printRef = useRef<HTMLDivElement>(null);
   const [hotelInfo, setHotelInfo] = useState<{ hotelName: string; gstNumber?: string; gstPercentage?: number } | null>(null);
+   const auth = getAuth();
+  const currentUser = auth.currentUser;
 
   const navigate = useNavigate();
 
   useEffect(() => {
     const fetchItems = async () => {
-      const snapshot = await getDocs(collection(db, "counterItems"));
+      const snapshot = await getDocs(collection(db, "users", currentUser!.uid, "counterItems"));
       const list = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
@@ -49,7 +52,7 @@ export default function CounterOrder() {
     fetchItems();
 
      const fetchHotelInfo = async () => {
-    const docRef = doc(db, "counterHotelInfo", "info");
+    const docRef = doc(db, "users", currentUser!.uid, "counterHotelInfo", "info");
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
       setHotelInfo(docSnap.data() as any);
@@ -67,7 +70,7 @@ export default function CounterOrder() {
   const getTodayDate = () => dayjs().format("YYYY-MM-DD");
 
   const getNextCouponNumber = async () => {
-    const metaRef = doc(db, "counterMeta", "couponTracker");
+    const metaRef = doc(db, "users", currentUser!.uid, "counterMeta", "couponTracker");
     const metaSnap = await getDoc(metaRef);
     const today = getTodayDate();
 
@@ -117,8 +120,8 @@ export default function CounterOrder() {
     timestamp,
   };
 
-  await addDoc(collection(db, "counterOrder"), orderData);
-  await addDoc(collection(db, "counterbill"), orderData);
+  await addDoc(collection(db, "users", currentUser!.uid, "counterOrder"), orderData);
+  await addDoc(collection(db, "users", currentUser!.uid, "counterbill"), orderData);
 
   const printPayload = {
     ...orderData,

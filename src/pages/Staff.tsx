@@ -5,6 +5,7 @@ import OrderForm from "../components/OrderForm";
 import RunningTables from "../components/RunningTables"; // ✅ Import running tables component
 import { Menu } from "lucide-react"; // Optional: for 3-dot icon
 import TableSystemHeader from "../components/TableSystemHeader";
+import { getAuth } from "firebase/auth";
 
 interface Order {
   id: string;
@@ -17,9 +18,11 @@ function Staff() {
   const [preparedOrders, setPreparedOrders] = useState<Order[]>([]);
   const [showNotif, setShowNotif] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
+   const auth = getAuth();
+  const currentUser = auth.currentUser;
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, "orders"), (snapshot) => {
+    const unsub = onSnapshot(collection(db, "users", currentUser!.uid, "orders"), (snapshot) => {
       const newPrepared: Order[] = [];
       const allPrepared: Order[] = [];
 
@@ -63,7 +66,7 @@ function Staff() {
   }, []);
 
   const handleServed = async (id: string) => {
-    const orderRef = doc(db, "orders", id);
+    const orderRef = doc(db, "users", currentUser!.uid, "orders", id);
     await updateDoc(orderRef, { status: "served" });
     setPreparedOrders((prev) => prev.filter((order) => order.id !== id));
   };

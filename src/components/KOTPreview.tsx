@@ -1,6 +1,7 @@
 import { doc, getDoc } from "firebase/firestore";
 import { useEffect, useRef, useState } from "react";
 import { db } from "../firebase";
+import { getAuth } from "firebase/auth";
 
 interface Item {
   name: string;
@@ -31,10 +32,12 @@ export default function KOTPreview({
   const printRef = useRef<HTMLDivElement>(null);
   const now = new Date();
   const formattedDate = now.toLocaleString();
+   const auth = getAuth();
+  const currentUser = auth.currentUser;
 
   useEffect(() => {
     const fetchHotelInfo = async () => {
-      const hotelDoc = await getDoc(doc(db, "hotelinfo", "main")); // 👈 Replace 'main' with your actual doc ID
+      const hotelDoc = await getDoc(doc(db, "users", currentUser!.uid, "hotelinfo", "main")); // 👈 Replace 'main' with your actual doc ID
       if (hotelDoc.exists()) {
         const data = hotelDoc.data();
         setHotelName(data.name || "My Hotel");

@@ -9,10 +9,13 @@ import { db } from "../firebase";
 import OrderSummary from "../components/OrderSummary";
 import HotelAnalytics from "../components/HotelAnalytics";
 import TableSystemHeader from "../components/TableSystemHeader";
+import { getAuth } from "firebase/auth";
 
 export default function Admin() {
   const navigate = useNavigate();
   const [showAddForm, setShowAddForm] = useState(false);
+   const auth = getAuth();
+  const currentUser = auth.currentUser;
 
   const handleAddMenu = async (data: {
     name: string;
@@ -21,7 +24,7 @@ export default function Admin() {
     nameMarathi: string;
     type: string;
   }) => {
-    await addDoc(collection(db, "menu"), data);
+    await addDoc(collection(db, "users", currentUser!.uid, "menu"), data);
     setShowAddForm(false);
   };
 

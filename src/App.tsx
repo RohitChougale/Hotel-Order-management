@@ -15,6 +15,9 @@ import CounterAdmin from "./components/CounterAdmin";
 import CounterItemList from "./components/CounterItemList";
 import CounterOrder from "./components/CounterOrder";
 import RunningCoupons from "./components/RunningCoupons";
+import CounterAnalytics from "./components/CounterAnalytics";
+import Signup from "./pages/Signup";
+import Login from "./pages/Login";
 
 function App() {
   return (
@@ -24,7 +27,8 @@ function App() {
       {/* Routes */}
       <main className="container mx-auto px-4 py-6">
         <Routes>
-          <Route path="/" element={<LandingPage/>}/>
+          <Route path="/login" element={<Login/>}/>
+          <Route path="/landingPage" element={<LandingPage/>}/>
           <Route path="/home" element={<Home/>}/>
           <Route path="/admin" element={<Admin />} />
           <Route path="/staff" element={<Staff />} />
@@ -40,6 +44,8 @@ function App() {
           <Route path="/counterItemList" element={<CounterItemList/>}/>
           <Route path="/counterOrder" element={<CounterOrder/>}/>
           <Route path="/runningCoupons" element={<RunningCoupons/>}/>
+          <Route path="/counterAnalytics" element={<CounterAnalytics/>}/>
+          <Route path="/signup" element={<Signup/>}/>
 
         </Routes>
       </main>

@@ -12,6 +12,7 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 import { db } from "../firebase";
+import { getAuth } from "firebase/auth";
 
 interface MenuItem {
   id: string;
@@ -45,10 +46,12 @@ export default function OrderForm() {
   const [searchTerm, setSearchTerm] = useState("");
   const [hotelInfo, setHotelInfo] = useState<HotelInfo | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
+   const auth = getAuth();
+  const currentUser = auth.currentUser;
 
   useEffect(() => {
     const fetchMenu = async () => {
-      const snapshot = await getDocs(collection(db, "menu"));
+      const snapshot = await getDocs(collection(db, "users", currentUser!.uid, "menu"));
       const list = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...(doc.data() as Omit<MenuItem, "id">),
@@ -57,7 +60,7 @@ export default function OrderForm() {
     };
 
     const fetchHotelInfo = async () => {
-      const snapshot = await getDocs(collection(db, "hotelinfo"));
+      const snapshot = await getDocs(collection(db, "users", currentUser!.uid, "hotelinfo"));
       if (!snapshot.empty) {
         const doc = snapshot.docs[0];
         setHotelInfo(doc.data() as HotelInfo);
@@ -65,7 +68,7 @@ export default function OrderForm() {
     };
 
     const unsubscribeSettings = onSnapshot(
-      collection(db, "settings"),
+      collection(db, "users", currentUser!.uid, "settings"),
       (snapshot) => {
         if (!snapshot.empty) {
           const doc = snapshot.docs[0];
@@ -144,7 +147,7 @@ const handleSubmit = async () => {
   const gstAmount = hotelInfo ? (subtotal * hotelInfo.gst) / 100 : 0;
   const total = parseFloat((subtotal + acCharge + gstAmount).toFixed(2));
 
-  const q = query(collection(db, "runningTables"), where("table", "==", finalTable));
+  const q = query(collection(db, "users", currentUser!.uid, "runningTables"), where("table", "==", finalTable));
   const existing = await getDocs(q);
 
   if (!existing.empty) {
@@ -175,7 +178,7 @@ const handleSubmit = async () => {
       updatedAt: Timestamp.now(),
     });
   } else {
-    await addDoc(collection(db, "runningTables"), {
+    await addDoc(collection(db, "users", currentUser!.uid, "runningTables"), {
       table: finalTable,
       items,
       acCharge,
@@ -186,7 +189,7 @@ const handleSubmit = async () => {
   }
 
   // 🔁 Save to 'orders' collection (one document per table)
-  const kotRefQuery = query(collection(db, "orders"), where("table", "==", finalTable));
+  const kotRefQuery = query(collection(db, "users", currentUser!.uid, "orders"), where("table", "==", finalTable));
   const existingKot = await getDocs(kotRefQuery);
 
   const kotItems = items.map((item) => ({
@@ -215,7 +218,7 @@ const handleSubmit = async () => {
       updatedAt: Timestamp.now(),
     });
   } else {
-    await addDoc(collection(db, "orders"), {
+    await addDoc(collection(db, "users", currentUser!.uid, "orders"), {
       table: finalTable,
       items: kotItems,
       createdAt: Timestamp.now(),

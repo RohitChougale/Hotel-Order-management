@@ -8,6 +8,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 import MenuForm from "./MenuForm";
+import { getAuth } from "firebase/auth";
 
 interface MenuItem {
   id: string;
@@ -29,10 +30,12 @@ export default function AdminMenuList() {
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [selectedType, setSelectedType] = useState("all");
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+   const auth = getAuth();
+  const currentUser = auth.currentUser;
 
   useEffect(() => {
     const fetchMenu = async () => {
-      const snapshot = await getDocs(collection(db, "menu"));
+      const snapshot = await getDocs(collection(db, "users", currentUser!.uid, "menu"));
       const items = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...(doc.data() as Omit<MenuItem, "id">),
@@ -43,7 +46,7 @@ export default function AdminMenuList() {
   }, []);
 
   const handleDelete = async (id: string) => {
-    await deleteDoc(doc(db, "menu", id));
+    await deleteDoc(doc(db, "users", currentUser!.uid, "menu", id));
     setMenu((prev) => prev.filter((item) => item.id !== id));
   };
 
@@ -58,7 +61,7 @@ export default function AdminMenuList() {
     id?: string
   ) => {
     if (!id) return;
-    await updateDoc(doc(db, "menu", id), data);
+    await updateDoc(doc(db, "users", currentUser!.uid, "menu", id), data);
     setMenu((prev) =>
       prev.map((item) => (item.id === id ? { ...item, ...data } : item))
     );

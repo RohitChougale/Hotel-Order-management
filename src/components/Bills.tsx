@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { collection, doc, getDocs, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { db } from "../firebase";
 import TableSystemHeader from "./TableSystemHeader";
+import { getAuth } from "firebase/auth";
 
 interface CustomWindow extends Window {
   ReactNativeWebView?: {
@@ -39,23 +40,29 @@ export default function UnpaidBills() {
   const [printing, setPrinting] = useState<string | null>(null);
   const [printerStatus, setPrinterStatus] = useState<string>('disconnected');
   const printRef = useRef<HTMLDivElement>(null);
+  const auth = getAuth();
+  const currentUser = auth.currentUser;
 
   // Check if running in React Native WebView
   const isReactNative = !!customWindow.ReactNativeWebView;
 
   useEffect(() => {
     const fetchHotelInfo = async () => {
-      const snapshot = await getDocs(collection(db, "hotelinfo"));
-      if (!snapshot.empty) {
-        const doc = snapshot.docs[0];
-        setHotelInfo(doc.data() as HotelInfo);
+      if (currentUser) {
+        const snapshot = await getDocs(
+          collection(db, "users", currentUser.uid, "hotelinfo")
+        );
+        if (!snapshot.empty) {
+          const doc = snapshot.docs[0];
+          setHotelInfo(doc.data() as HotelInfo);
+        }
       }
     };
     fetchHotelInfo();
   }, []);
 
   useEffect(() => {
-    const q = query(collection(db, "bills"), where("paid", "==", "no"));
+    const q = query(collection(db, "users", currentUser!.uid, "bills"), where("paid", "==", "no"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map((docSnap) => {
         const raw = docSnap.data();
@@ -126,7 +133,7 @@ export default function UnpaidBills() {
 
   const updateBillStatus = async (billId: string) => {
     try {
-      await updateDoc(doc(db, "bills", billId), { paid: "yes" });
+      await updateDoc(doc(db, "users", currentUser!.uid, "bills", billId), { paid: "yes" });
     } catch (error) {
       console.error('Error updating bill status:', error);
     }
