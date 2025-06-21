@@ -18,6 +18,7 @@ import RunningCoupons from "./components/RunningCoupons";
 import CounterAnalytics from "./components/CounterAnalytics";
 import Signup from "./pages/Signup";
 import Login from "./pages/Login";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
   return (
@@ -28,23 +29,23 @@ function App() {
       <main className="container mx-auto px-4 py-6">
         <Routes>
           <Route path="/" element={<Login/>}/>
-          <Route path="/landingPage" element={<LandingPage/>}/>
-          <Route path="/home" element={<Home/>}/>
-          <Route path="/admin" element={<Admin />} />
-          <Route path="/staff" element={<Staff />} />
-          <Route path="/kot" element={<KOT />} />
-          <Route path="/adminMenu" element={<AdminMenuList />} />
-          <Route path="orderSummary" element={<OrderSummary/>}/>
-          <Route path="/running-tables" element={<RunningTables />} />
-          <Route path="/bills" element={<UnpaidBills/>}/>
-          <Route path="/settings" element={<Settings/>}/>
-          <Route path="/hotelAnalytics" element={<HotelAnalytics/>}/>
-          <Route path="/counterHome" element={<CounterHome/>}/>
-          <Route path="/counterAdmin" element={<CounterAdmin/>}/>
-          <Route path="/counterItemList" element={<CounterItemList/>}/>
-          <Route path="/counterOrder" element={<CounterOrder/>}/>
-          <Route path="/runningCoupons" element={<RunningCoupons/>}/>
-          <Route path="/counterAnalytics" element={<CounterAnalytics/>}/>
+          <Route path="/landingPage" element={<ProtectedRoute><LandingPage/></ProtectedRoute>}/>
+          <Route path="/home" element={<ProtectedRoute><Home/></ProtectedRoute>}/>
+          <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+          <Route path="/staff" element={<ProtectedRoute><Staff/></ProtectedRoute>} />
+          <Route path="/kot" element={<ProtectedRoute><KOT/></ProtectedRoute>} />
+          <Route path="/adminMenu" element={<ProtectedRoute><AdminMenuList/></ProtectedRoute>} />
+          <Route path="orderSummary" element={<ProtectedRoute><OrderSummary/></ProtectedRoute>}/>
+          <Route path="/running-tables" element={<ProtectedRoute><RunningTables /></ProtectedRoute>} />
+          <Route path="/bills" element={<ProtectedRoute><UnpaidBills/></ProtectedRoute>}/>
+          <Route path="/settings" element={<ProtectedRoute><Settings/></ProtectedRoute>}/>
+          <Route path="/hotelAnalytics" element={<ProtectedRoute><HotelAnalytics/></ProtectedRoute>}/>
+          <Route path="/counterHome" element={<ProtectedRoute><CounterHome/></ProtectedRoute>}/>
+          <Route path="/counterAdmin" element={<ProtectedRoute><CounterAdmin/></ProtectedRoute>}/>
+          <Route path="/counterItemList" element={<ProtectedRoute><CounterItemList/></ProtectedRoute>}/>
+          <Route path="/counterOrder" element={<ProtectedRoute><CounterOrder/></ProtectedRoute>}/>
+          <Route path="/runningCoupons" element={<ProtectedRoute><RunningCoupons/></ProtectedRoute>}/>
+          <Route path="/counterAnalytics" element={<ProtectedRoute><CounterAnalytics/></ProtectedRoute>}/>
           <Route path="/signup" element={<Signup/>}/>
 
         </Routes>

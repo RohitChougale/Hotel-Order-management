@@ -1,10 +1,26 @@
+import { signOut } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
+import { auth } from "../firebase";
 
 export default function CounterHome() {
   const navigate = useNavigate();
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      navigate("/login");
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-gradient-to-br from-yellow-100 to-pink-100 flex items-center justify-center overflow-hidden">
+         <button
+      onClick={handleLogout}
+      className="fixed top-5 right-5 z-50 bg-red-500 text-white px-4 py-2 rounded-lg shadow hover:bg-red-600 transition"
+    >
+      🚪 Logout
+    </button>
       <div className="bg-white p-10 rounded-3xl shadow-2xl text-center space-y-6 w-full max-w-2xl">
         <h1 className="text-4xl font-bold text-gray-800">🎟️ Counter System</h1>
         <p className="text-lg italic text-gray-600">
