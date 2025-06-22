@@ -12,8 +12,16 @@ import Papa from "papaparse";
 import { getAuth } from "firebase/auth";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 export default function CounterAnalytics() {
   const [data, setData] = useState<any[]>([]);
@@ -141,15 +149,17 @@ export default function CounterAnalytics() {
   const downloadPDF = () => {
     const doc = new jsPDF();
     doc.text("Counter Item Analytics", 14, 16);
-    doc.autoTable({
-  startY: 20,
-  head: [["Item", "Quantity", "Subtotal ₹"]],
-  body: filteredData.map((item) => [
-    item.name,
-    item.quantity,
-    item.subtotal.toFixed(2),
-  ]),
-});
+
+    // Important: register autoTable manually
+    autoTable(doc, {
+      startY: 20,
+      head: [["Item", "Quantity", "Subtotal ₹"]],
+      body: filteredData.map((item) => [
+        item.name,
+        item.quantity,
+        item.subtotal.toFixed(2),
+      ]),
+    });
 
     doc.save("counter_analytics.pdf");
   };
@@ -157,14 +167,14 @@ export default function CounterAnalytics() {
   const totalRevenue = filteredData.reduce((sum, item) => sum + item.subtotal, 0);
 
   return (
-    <div className="p-4 bg-white min-h-screen max-w-full">
+    <div className="p-4 bg-white min-h-screen w-full">
       <h1 className="text-2xl font-bold text-orange-600 mb-4">
         📊 Counter Item Analytics
       </h1>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row flex-wrap gap-4 mb-6 items-end">
-        <div>
+      <div className="flex flex-col md:flex-row md:flex-wrap gap-4 mb-6 items-end w-full">
+        <div className="w-full md:w-48">
           <label className="font-semibold text-gray-700 block mb-1">📅 Start Date:</label>
           <input
             type="date"
@@ -173,7 +183,7 @@ export default function CounterAnalytics() {
             className="border px-3 py-2 rounded-md shadow-sm w-full"
           />
         </div>
-        <div>
+        <div className="w-full md:w-48">
           <label className="font-semibold text-gray-700 block mb-1">📅 End Date:</label>
           <input
             type="date"
@@ -182,7 +192,7 @@ export default function CounterAnalytics() {
             className="border px-3 py-2 rounded-md shadow-sm w-full"
           />
         </div>
-        <div>
+        <div className="w-full md:w-48">
           <label className="font-semibold text-gray-700 block mb-1">📦 Order Type:</label>
           <select
             value={orderType}
@@ -194,8 +204,7 @@ export default function CounterAnalytics() {
             <option value="takeaway">Takeaway</option>
           </select>
         </div>
-
-        <div className="relative w-full sm:w-64" ref={dropdownRef}>
+        <div className="relative w-full md:w-64" ref={dropdownRef}>
           <label className="font-semibold text-gray-700 block mb-1">🧺 Select Items:</label>
           <button
             onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -230,13 +239,13 @@ export default function CounterAnalytics() {
         </div>
       </div>
 
-      {/* Total Summary */}
-      <div className="mb-6 text-xl font-semibold text-green-700">
+      {/* Summary */}
+      <div className="mb-6 text-lg font-semibold text-green-700">
         💰 Total Revenue: ₹{totalRevenue.toFixed(2)}
       </div>
 
-      {/* Buttons */}
-      <div className="flex gap-4 mb-6">
+      {/* Action Buttons */}
+      <div className="flex flex-wrap gap-4 mb-6">
         <button
           onClick={downloadCSV}
           className="bg-blue-500 text-white px-4 py-2 rounded shadow hover:bg-blue-600"
@@ -250,28 +259,26 @@ export default function CounterAnalytics() {
           ⬇️ Download PDF
         </button>
       </div>
-      {/* Line Chart */}
-<div className="h-72 bg-white rounded shadow p-2 mb-6 w-full overflow-x-auto">
-  <h2 className="text-lg font-semibold text-gray-700 mb-2">📈 Revenue & Quantity Graph</h2>
-  {filteredData.length > 0 ? (
-    <div style={{ width: "100%", height: "100%" }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={filteredData}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="name" />
-          <YAxis />
-          <Tooltip />
-          <Legend />
-          <Line type="monotone" dataKey="subtotal" stroke="#f97316" name="Revenue ₹" />
-          <Line type="monotone" dataKey="quantity" stroke="#10b981" name="Qty Sold" />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  ) : (
-    <p className="text-gray-500 text-center py-4">No data to display in chart.</p>
-  )}
-</div>
 
+      {/* Graph */}
+      <div className="h-72 bg-white rounded shadow p-2 mb-6 w-full">
+        <h2 className="text-lg font-semibold text-gray-700 mb-2">📈 Revenue & Quantity Graph</h2>
+        {filteredData.length > 0 ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={filteredData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Line type="monotone" dataKey="subtotal" stroke="#f97316" name="Revenue ₹" />
+              <Line type="monotone" dataKey="quantity" stroke="#10b981" name="Qty Sold" />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <p className="text-gray-500 text-center py-4">No data to display in chart.</p>
+        )}
+      </div>
 
       {/* Table */}
       <div className="overflow-x-auto bg-white rounded shadow">
