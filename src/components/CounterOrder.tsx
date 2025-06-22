@@ -20,13 +20,13 @@ declare global {
   }
 }
 
-
 export default function CounterOrder() {
   type CounterItem = {
     id: string;
     name: string;
     nameMarathi: string;
     price: number;
+    code: string;
   };
 
   const [items, setItems] = useState<CounterItem[]>([]);
@@ -34,15 +34,23 @@ export default function CounterOrder() {
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [printData, setPrintData] = useState<any>(null);
   const printRef = useRef<HTMLDivElement>(null);
-  const [hotelInfo, setHotelInfo] = useState<{ hotelName: string; gstNumber?: string; gstPercentage?: number } | null>(null);
-   const auth = getAuth();
+  const [hotelInfo, setHotelInfo] = useState<{
+    hotelName: string;
+    gstNumber?: string;
+    gstPercentage?: number;
+  } | null>(null);
+  const [searchCode, setSearchCode] = useState("");
+  const [filteredItems, setFilteredItems] = useState<CounterItem[]>([]);
+  const auth = getAuth();
   const currentUser = auth.currentUser;
 
   const navigate = useNavigate();
 
   useEffect(() => {
     const fetchItems = async () => {
-      const snapshot = await getDocs(collection(db, "users", currentUser!.uid, "counterItems"));
+      const snapshot = await getDocs(
+        collection(db, "users", currentUser!.uid, "counterItems")
+      );
       const list = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
@@ -51,17 +59,32 @@ export default function CounterOrder() {
     };
     fetchItems();
 
-     const fetchHotelInfo = async () => {
-    const docRef = doc(db, "users", currentUser!.uid, "counterHotelInfo", "info");
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      setHotelInfo(docSnap.data() as any);
-    }
-  };
-  fetchHotelInfo();
+    const fetchHotelInfo = async () => {
+      const docRef = doc(
+        db,
+        "users",
+        currentUser!.uid,
+        "counterHotelInfo",
+        "info"
+      );
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        setHotelInfo(docSnap.data() as any);
+      }
+    };
+    fetchHotelInfo();
   }, []);
 
-
+  useEffect(() => {
+    if (searchCode.trim() === "") {
+      setFilteredItems([]);
+    } else {
+      const results = items.filter((item) =>
+        item.code?.toLowerCase().includes(searchCode.trim().toLowerCase())
+      );
+      setFilteredItems(results);
+    }
+  }, [searchCode, items]);
 
   const handleQuantityChange = (id: string, qty: number) => {
     setQuantities((prev) => ({ ...prev, [id]: qty }));
@@ -70,7 +93,13 @@ export default function CounterOrder() {
   const getTodayDate = () => dayjs().format("YYYY-MM-DD");
 
   const getNextCouponNumber = async () => {
-    const metaRef = doc(db, "users", currentUser!.uid, "counterMeta", "couponTracker");
+    const metaRef = doc(
+      db,
+      "users",
+      currentUser!.uid,
+      "counterMeta",
+      "couponTracker"
+    );
     const metaSnap = await getDoc(metaRef);
     const today = getTodayDate();
 
@@ -92,7 +121,7 @@ export default function CounterOrder() {
     return newCouponNumber;
   };
 
- const handleOrder = async () => {
+ const handleOrder = async (orderType: "table" | "takeaway") => {
   const filteredItems = items
     .filter((item) => quantities[item.id] > 0)
     .map((item) => ({
@@ -118,6 +147,7 @@ export default function CounterOrder() {
     couponId,
     subTotal,
     timestamp,
+    orderType, // 👈 include order type
   };
 
   await addDoc(collection(db, "users", currentUser!.uid, "counterOrder"), orderData);
@@ -125,18 +155,21 @@ export default function CounterOrder() {
 
   const printPayload = {
     ...orderData,
-    hotelName: hotelInfo?.hotelName || '',
+    hotelName: hotelInfo?.hotelName || "",
     date: dayjs().format("DD-MM-YYYY HH:mm"),
   };
 
   setPrintData(printPayload);
   setOrderPlaced(true);
 
-  // 👉 Send data to React Native app if inside WebView
-  if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === "function") {
-    window.ReactNativeWebView.postMessage(JSON.stringify({ type: "print", payload: printPayload }));
+  if (
+    window.ReactNativeWebView &&
+    typeof window.ReactNativeWebView.postMessage === "function"
+  ) {
+    window.ReactNativeWebView.postMessage(
+      JSON.stringify({ type: "print", payload: printPayload })
+    );
   } else {
-    // fallback: browser print
     setTimeout(() => {
       window.print();
     }, 300);
@@ -164,54 +197,77 @@ export default function CounterOrder() {
           🔖 Running Coupons
         </button>
       </div>
+      {/* Search Code Input */}
+      <div className="flex items-center justify-center mb-4">
+        <input
+          type="text"
+          placeholder="Search by Item Code"
+          value={searchCode}
+          onChange={(e) => setSearchCode(e.target.value)}
+          className="border border-gray-300 rounded-md px-4 py-2 w-64 focus:outline-none focus:ring-2 focus:ring-orange-400"
+        />
+      </div>
 
       {/* Items Grid */}
       <h2 className="text-2xl font-bold text-orange-800 mb-4">
         🧺 Available Items
       </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {items.map((item) => (
+        {(filteredItems.length > 0 ? filteredItems : items).map((item) => (
           <div
-            key={item.id}
-            className="bg-white rounded-xl shadow-md p-5 border flex flex-col justify-between hover:shadow-lg transition"
-          >
-            <div>
-              <h2 className="text-lg font-bold text-gray-800 mb-1">
-                {item.name}
-              </h2>
-              <p className="text-gray-500 font-medium text-sm mb-2">
-                ₹{item.price}
-              </p>
-            </div>
-            <input
-              type="number"
-              min={0}
-              value={quantities[item.id] || ""}
-              onChange={(e) =>
-                handleQuantityChange(item.id, parseInt(e.target.value) || 0)
-              }
-              className="w-full border border-gray-300 px-3 py-2 rounded-md text-center focus:outline-none focus:ring-2 focus:ring-orange-400"
-              placeholder="Quantity"
-            />
-          </div>
+  key={item.id}
+  className="bg-white rounded-xl shadow-md p-5 border relative hover:shadow-lg transition"
+>
+  {/* Code in top-right corner of the card */}
+  <div className="absolute top-2 right-2 bg-orange-200 text-orange-800 text-xs font-bold px-2 py-1 rounded">
+    Code: {item.code}
+  </div>
+
+  <div>
+    <h2 className="text-lg font-bold text-gray-800 mb-1">{item.name}</h2>
+    <p className="text-gray-500 font-medium text-sm mb-2">₹{item.price}</p>
+  </div>
+
+  <input
+    type="number"
+    min={0}
+    value={quantities[item.id] || ""}
+    onChange={(e) =>
+      handleQuantityChange(item.id, parseInt(e.target.value) || 0)
+    }
+    className="w-full border border-gray-300 px-3 py-2 rounded-md text-center focus:outline-none focus:ring-2 focus:ring-orange-400"
+    placeholder="Quantity"
+  />
+</div>
+
         ))}
       </div>
 
-      {/* Order Button */}
-      <div className="mt-10 text-center">
-        <button
-          onClick={handleOrder}
-          className="bg-green-600 text-white px-8 py-3 sm:px-10 sm:py-4 rounded-lg shadow hover:bg-orange-700 text-lg sm:text-xl font-semibold transition"
-        >
-          ✅ Place Order & Print
-        </button>
-      </div>
+      {/* Order Buttons */}
+<div className="mt-10 flex flex-col sm:flex-row justify-center gap-4 text-center">
+  <button
+    onClick={() => handleOrder("table")}
+    className="bg-green-600 text-white px-8 py-3 sm:px-10 sm:py-4 rounded-lg shadow hover:bg-orange-700 text-lg sm:text-xl font-semibold transition"
+  >
+    ✅ Place Order & Print
+  </button>
+
+  <button
+    onClick={() => handleOrder("takeaway")}
+    className="bg-blue-600 text-white px-8 py-3 sm:px-10 sm:py-4 rounded-lg shadow hover:bg-blue-700 text-lg sm:text-xl font-semibold transition"
+  >
+    🛍️ Take Away & Print
+  </button>
+</div>
+
 
       {/* Printable Bill */}
       {orderPlaced && printData && (
         <div className="print-only p-2 mt-10" ref={printRef}>
           <div className="text-center text-sm border p-2 w-60 mx-auto bg-white rounded shadow">
-            <h2 className="font-bold text-3xl mb-2">🍽️ {hotelInfo?.hotelName}</h2>
+            <h2 className="font-bold text-3xl mb-2">
+              🍽️ {hotelInfo?.hotelName}
+            </h2>
             <p className="text-2xl font-bold mb-1">{printData.couponId}</p>
             <p className="text-lx mb-1">Date: {printData.date}</p>
             <hr className="my-2" />

@@ -8,10 +8,11 @@ export default function CounterAdmin() {
   const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
   const [item, setItem] = useState({
-    name: "",
-    nameMarathi: "",
-    price: "",
-  });
+  name: "",
+  nameMarathi: "",
+  price: "",
+  code: "",
+});
    const auth = getAuth();
   const currentUser = auth.currentUser;
 
@@ -34,7 +35,7 @@ export default function CounterAdmin() {
     });
 
     alert("Item added successfully!");
-    setItem({ name: "", nameMarathi: "", price: "" });
+    setItem({ name: "", nameMarathi: "", price: "", code:""});
     setShowModal(false);
   };
 
@@ -216,6 +217,16 @@ export default function CounterAdmin() {
                 onChange={handleChange}
                 className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
+
+              <input
+  type="text"
+  name="code"
+  placeholder="Item Code"
+  value={item.code}
+  onChange={handleChange}
+  className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
+/>
+
 
               <input
                 type="number"
