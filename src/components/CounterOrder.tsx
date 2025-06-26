@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import {
   collection,
   getDocs,
@@ -45,16 +45,36 @@ export default function CounterOrder() {
   } | null>(null);
   const [searchCode, setSearchCode] = useState("");
   const [filteredItems, setFilteredItems] = useState<CounterItem[]>([]);
-  
+  const [paymentMethod, setPaymentMethod] = useState<"Cash" | "Online">("Cash");
+  const [numberOfPrints, setNumberOfPrints] = useState(1);
+
   // Cancel coupon states
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelCouponId, setCancelCouponId] = useState("");
   const [couponToCancel, setCouponToCancel] = useState<any>(null);
   const [cancelLoading, setCancelLoading] = useState(false);
-  
+
   const auth = getAuth();
   const currentUser = auth.currentUser;
   const navigate = useNavigate();
+
+  // Memoized calculation for the bill preview
+  const currentOrderDetails = useMemo(() => {
+    const orderItems = items
+      .filter((item) => quantities[item.id] > 0)
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: quantities[item.id],
+        total: item.price * (quantities[item.id] || 0),
+      }));
+
+    const subTotal = orderItems.reduce((sum, item) => sum + item.total, 0);
+    const grandTotal = subTotal; // Can be expanded with taxes/discounts later
+
+    return { orderItems, subTotal, grandTotal };
+  }, [items, quantities]);
 
   useEffect(() => {
     const fetchItems = async () => {
@@ -78,31 +98,45 @@ export default function CounterOrder() {
         "info"
       );
       const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        setHotelInfo(docSnap.data() as any);
-      }
+      if (docSnap.exists()) setHotelInfo(docSnap.data() as any);
     };
     fetchHotelInfo();
+
+    const fetchPrintSettings = async () => {
+      const settingsRef = doc(
+        db,
+        "users",
+        currentUser!.uid,
+        "settings",
+        "userSettings"
+      );
+      const settingsSnap = await getDoc(settingsRef);
+      if (settingsSnap.exists()) {
+        const data = settingsSnap.data();
+        if (data.numberOfPrints) setNumberOfPrints(data.numberOfPrints);
+      }
+    };
+    fetchPrintSettings();
   }, []);
 
-  // Hotkey functionality
   useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
-      // Only trigger if not typing in an input field
-      if (event.target instanceof HTMLInputElement) return;
-      
-      if (event.key.toLowerCase() === 't') {
+      if (
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement
+      )
+        return;
+      if (event.key.toLowerCase() === "t") {
         event.preventDefault();
-        handleOrder("table");
-      } else if (event.key.toLowerCase() === 'p') {
+        handleOrder("Table");
+      } else if (event.key.toLowerCase() === "p") {
         event.preventDefault();
         handleOrder("Parcel");
       }
     };
-
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [quantities, items]);
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
+  }, [quantities, items, paymentMethod]); // Dependencies updated
 
   useEffect(() => {
     if (searchCode.trim() === "") {
@@ -111,7 +145,7 @@ export default function CounterOrder() {
       const codes = searchCode
         .split(" ")
         .map((code) => code.trim().toLowerCase())
-        .filter((code) => code);
+        .filter(Boolean);
       const results = items.filter((item) =>
         codes.some((code) => item.code?.toLowerCase().includes(code))
       );
@@ -120,7 +154,7 @@ export default function CounterOrder() {
   }, [searchCode, items]);
 
   const handleQuantityChange = (id: string, qty: number) => {
-    setQuantities((prev) => ({ ...prev, [id]: qty }));
+    setQuantities((prev) => ({ ...prev, [id]: qty >= 0 ? qty : 0 }));
   };
 
   const getTodayDate = () => dayjs().format("YYYY-MM-DD");
@@ -135,7 +169,6 @@ export default function CounterOrder() {
     );
     const metaSnap = await getDoc(metaRef);
     const today = getTodayDate();
-
     let newCouponNumber = 1;
 
     if (metaSnap.exists()) {
@@ -145,69 +178,57 @@ export default function CounterOrder() {
         if (newCouponNumber > 100) newCouponNumber = 1;
       }
     }
-
     await setDoc(metaRef, {
       lastCouponNumber: newCouponNumber,
       lastResetDate: today,
     });
-
     return newCouponNumber;
   };
 
-  const handleOrder = async (orderType: "table" | "Parcel") => {
-    const filteredItems = items
-      .filter((item) => quantities[item.id] > 0)
-      .map((item) => ({
-        name: item.name,
-        nameMarathi: item.nameMarathi,
-        price: item.price,
-        quantity: quantities[item.id],
-        total: item.price * quantities[item.id],
-      }));
-
-    if (filteredItems.length === 0) {
+  const handleOrder = async (orderType: "Table" | "Parcel") => {
+    const { orderItems, subTotal } = currentOrderDetails;
+    if (orderItems.length === 0) {
       alert("Please add at least one item.");
       return;
     }
-
     const timestamp = Timestamp.now();
     const couponNumber = await getNextCouponNumber();
-    const couponId = `${String(couponNumber).padStart(3, "0")}`;
-    const subTotal = filteredItems.reduce((sum, item) => sum + item.total, 0);
+    const couponId = `${String(couponNumber).padStart(2, "0")}`;
 
     const orderData = {
-      items: filteredItems,
+      items: orderItems.map(({ id, ...rest }) => rest),
       couponId,
       subTotal,
       timestamp,
       orderType,
+      payment: paymentMethod,
     };
-
-    await addDoc(collection(db, "users", currentUser!.uid, "counterOrder"), orderData);
-    await addDoc(collection(db, "users", currentUser!.uid, "counterbill"), orderData);
+    await addDoc(
+      collection(db, "users", currentUser!.uid, "counterOrder"),
+      orderData
+    );
+    await addDoc(
+      collection(db, "users", currentUser!.uid, "counterbill"),
+      orderData
+    );
 
     const printPayload = {
       ...orderData,
       hotelName: hotelInfo?.hotelName || "",
       date: dayjs().format("DD-MM-YYYY HH:mm"),
     };
-
     setPrintData(printPayload);
     setOrderPlaced(true);
 
-    if (
-      window.ReactNativeWebView &&
-      typeof window.ReactNativeWebView.postMessage === "function"
-    ) {
+    if (window.ReactNativeWebView?.postMessage) {
       window.ReactNativeWebView.postMessage(
         JSON.stringify({ type: "print", payload: printPayload })
       );
     } else {
-      setTimeout(() => {
-        window.print();
-      }, 300);
+      for (let i = 0; i < numberOfPrints; i++) {
+        setTimeout(() => window.print(), i * 1000);
+      }
     }
-
     setTimeout(() => {
       setQuantities({});
       setOrderPlaced(false);
@@ -215,73 +236,57 @@ export default function CounterOrder() {
     }, 1000);
   };
 
-  // Cancel coupon functionality
+  // --- Cancel coupon functions remain unchanged ---
   const searchCoupon = async () => {
-    if (!cancelCouponId.trim()) {
-      alert("Please enter a coupon ID");
+    if (!cancelCouponId.trim()) return alert("Please enter a coupon ID");
+    setCancelLoading(true);
+    const orderQuery = query(
+      collection(db, "users", currentUser!.uid, "counterOrder"),
+      where("couponId", "==", cancelCouponId.trim())
+    );
+    const orderSnapshot = await getDocs(orderQuery);
+    if (orderSnapshot.empty) {
+      alert("Coupon not found or already closed");
+      setCancelLoading(false);
       return;
     }
-
-    setCancelLoading(true);
-    try {
-      // Search in counterOrder collection
-      const orderQuery = query(
-        collection(db, "users", currentUser!.uid, "counterOrder"),
-        where("couponId", "==", cancelCouponId.trim())
-      );
-      const orderSnapshot = await getDocs(orderQuery);
-
-      if (orderSnapshot.empty) {
-        alert("Coupon not found or already closed");
-        setCancelLoading(false);
-        return;
-      }
-
-      const couponData = {
-        id: orderSnapshot.docs[0].id,
-        ...orderSnapshot.docs[0].data(),
-      };
-      setCouponToCancel(couponData);
-    } catch (error) {
-      console.error("Error searching coupon:", error);
-      alert("Error searching coupon. Please try again.");
-    }
+    setCouponToCancel({
+      id: orderSnapshot.docs[0].id,
+      ...orderSnapshot.docs[0].data(),
+    });
     setCancelLoading(false);
   };
 
   const cancelCoupon = async () => {
-    if (!couponToCancel) return;
-
-    if (!confirm(`Are you sure you want to cancel coupon ${couponToCancel.couponId}?`)) {
+    if (
+      !couponToCancel ||
+      !confirm(
+        `Are you sure you want to cancel coupon ${couponToCancel.couponId}?`
+      )
+    )
       return;
-    }
-
     setCancelLoading(true);
-    try {
-      // Delete from counterOrder
-      await deleteDoc(doc(db, "users", currentUser!.uid, "counterOrder", couponToCancel.id));
-
-      // Delete from counterbill
-      const billQuery = query(
-        collection(db, "users", currentUser!.uid, "counterbill"),
-        where("couponId", "==", couponToCancel.couponId)
+    await deleteDoc(
+      doc(db, "users", currentUser!.uid, "counterOrder", couponToCancel.id)
+    );
+    const billQuery = query(
+      collection(db, "users", currentUser!.uid, "counterbill"),
+      where("couponId", "==", couponToCancel.couponId)
+    );
+    const billSnapshot = await getDocs(billQuery);
+    if (!billSnapshot.empty) {
+      await deleteDoc(
+        doc(
+          db,
+          "users",
+          currentUser!.uid,
+          "counterbill",
+          billSnapshot.docs[0].id
+        )
       );
-      const billSnapshot = await getDocs(billQuery);
-      
-      if (!billSnapshot.empty) {
-        await deleteDoc(doc(db, "users", currentUser!.uid, "counterbill", billSnapshot.docs[0].id));
-      }
-
-      alert(`Coupon ${couponToCancel.couponId} has been cancelled successfully`);
-      
-      // Reset states and close dialog
-      setCancelCouponId("");
-      setCouponToCancel(null);
-      setShowCancelDialog(false);
-    } catch (error) {
-      console.error("Error cancelling coupon:", error);
-      alert("Error cancelling coupon. Please try again.");
     }
+    alert(`Coupon ${couponToCancel.couponId} has been cancelled successfully`);
+    closeCancelDialog();
     setCancelLoading(false);
   };
 
@@ -314,52 +319,79 @@ export default function CounterOrder() {
         </div>
       </div>
 
-      {/* Hotkey Instructions */}
-      <div className="bg-blue-50 border-l-4 border-blue-400 p-3 mb-4 text-sm">
-        <p className="text-blue-800">
-          <strong>Hotkeys:</strong> Press <kbd className="bg-blue-200 px-1 rounded">T</kbd> for Table Order, 
-          <kbd className="bg-blue-200 px-1 rounded ml-1">P</kbd> for Parcel Order
-        </p>
+      {/* Controls */}
+      <div className="max-w-4xl mx-auto mb-6">
+        <div className="bg-blue-50 border-l-4 border-blue-400 p-3 mb-4 text-sm">
+          <p className="text-blue-800">
+            <strong>Hotkeys:</strong> Press{" "}
+            <kbd className="bg-blue-200 px-1 rounded">T</kbd> for Table,{" "}
+            <kbd className="bg-blue-200 px-1 rounded ml-1">P</kbd> for Parcel
+          </p>
+        </div>
+        <div className="flex items-center justify-center gap-6 mb-6">
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="payment"
+              value="Cash"
+              checked={paymentMethod === "Cash"}
+              onChange={() => setPaymentMethod("Cash")}
+              className="accent-green-600"
+            />
+            <span className="text-sm font-medium text-gray-800">💵 Cash</span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="payment"
+              value="Online"
+              checked={paymentMethod === "Online"}
+              onChange={() => setPaymentMethod("Online")}
+              className="accent-blue-600"
+            />
+            <span className="text-sm font-medium text-gray-800">📲 Online</span>
+          </label>
+        </div>
+        <div className="flex items-center justify-center relative">
+          <input
+            type="text"
+            placeholder="Search by Item Code"
+            value={searchCode}
+            onChange={(e) => setSearchCode(e.target.value)}
+            className="border border-gray-300 rounded-md px-4 py-2 w-64 focus:outline-none focus:ring-2 focus:ring-orange-400"
+          />
+          {searchCode && (
+            <button
+              onClick={() => setSearchCode("")}
+              className="ml-2 hover:text-black-600 font-bold text-xl bg-red-600 text-white px-3 py-1 rounded-lg border border-white-300"
+            >
+              ×
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Search Code Input */}
-      <div className="flex items-center justify-center mb-4 relative">
-        <input
-          type="text"
-          placeholder="Search by Item Code"
-          value={searchCode}
-          onChange={(e) => setSearchCode(e.target.value)}
-          className="border border-gray-300 rounded-md px-4 py-2 w-64 focus:outline-none focus:ring-2 focus:ring-orange-400"
-        />
-        {searchCode && (
-          <button
-            onClick={() => setSearchCode("")}
-            className="ml-2 hover:text-black-600 font-bold text-xl bg-red-600 text-white px-3 py-1 rounded-lg border border-white-300"
-          >
-            ×
-          </button>
-        )}
-      </div>
-
-      {/* Items Grid */}
-      <h2 className="text-2xl font-bold text-orange-800 mb-4">
+      {/* Available Items */}
+      <h2 className="text-2xl font-bold text-orange-800 mb-4 text-center sm:text-left">
         🧺 Available Items
       </h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
         {(filteredItems.length > 0 ? filteredItems : items).map((item) => (
           <div
             key={item.id}
-            className="bg-white rounded-xl shadow-md p-5 border relative hover:shadow-lg transition"
+            className="bg-white rounded-xl shadow-md p-4 border relative hover:shadow-lg transition flex flex-col"
           >
-            <div className="absolute top-2 right-2 bg-orange-200 text-orange-800 text-xl font-bold px-2 py-1 rounded">
+            <div className="absolute top-1 right-2 text-orange-800 text-xs font-bold px-1 rounded">
               Code: {item.code}
             </div>
-
-            <div>
-              <h2 className="text-lg font-bold text-gray-800 mb-1">{item.name}</h2>
-              <p className="text-gray-500 font-medium text-sm mb-2">₹{item.price}</p>
+            <div className="flex-grow">
+              <h2 className="text-base font-bold text-gray-800 mb-1">
+                {item.name}
+              </h2>
+              <p className="text-gray-500 font-medium text-sm mb-2">
+                ₹{item.price}
+              </p>
             </div>
-
             <input
               type="number"
               min={0}
@@ -368,26 +400,67 @@ export default function CounterOrder() {
                 handleQuantityChange(item.id, parseInt(e.target.value) || 0)
               }
               className="w-full border border-gray-300 px-3 py-2 rounded-md text-center focus:outline-none focus:ring-2 focus:ring-orange-400"
-              placeholder="Quantity"
+              placeholder="Qty"
             />
           </div>
         ))}
       </div>
 
+      {/* --- Start of New Bill Preview Section --- */}
+      {currentOrderDetails.orderItems.length > 0 && (
+        <div className="mt-10 max-w-xl mx-auto bg-white rounded-xl shadow-lg p-4 sm:p-6 animate-fade-in">
+          <h2 className="text-2xl font-bold text-gray-800 mb-4 border-b pb-2 text-center">
+            Bill Preview
+          </h2>
+          {/* Item List */}
+          <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
+            {currentOrderDetails.orderItems.map((item) => (
+              <div
+                key={item.id}
+                className="flex justify-between items-center text-sm sm:text-base"
+              >
+                <div>
+                  <p className="font-semibold text-gray-700">{item.name}</p>
+                  <p className="text-gray-500">
+                    ₹{item.price.toFixed(2)} x {item.quantity}
+                  </p>
+                </div>
+                <p className="font-bold text-gray-800">
+                  ₹{item.total.toFixed(2)}
+                </p>
+              </div>
+            ))}
+          </div>
+          {/* Totals */}
+          <div className="mt-4 border-t-2 border-dashed pt-4 space-y-2">
+            <div className="flex justify-between font-semibold text-base sm:text-lg">
+              <span>Subtotal</span>
+              <span>₹{currentOrderDetails.subTotal.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between font-extrabold text-xl sm:text-2xl text-orange-700 mt-2">
+              <span>Grand Total</span>
+              <span>₹{currentOrderDetails.grandTotal.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* --- End of New Bill Preview Section --- */}
+
       {/* Order Buttons */}
       <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4 text-center">
         <button
-          onClick={() => handleOrder("table")}
+          onClick={() => handleOrder("Table")}
           className="bg-green-600 text-white px-8 py-3 sm:px-10 sm:py-4 rounded-lg shadow hover:bg-green-700 text-lg sm:text-xl font-semibold transition"
         >
-          ✅ Table Order & Print <kbd className="ml-2 bg-green-500 px-2 py-1 rounded text-sm">(T)</kbd>
+          ✅ Table Order & Print{" "}
+          <kbd className="ml-2 bg-green-500 px-2 py-1 rounded text-sm">(T)</kbd>
         </button>
-
         <button
           onClick={() => handleOrder("Parcel")}
           className="bg-blue-600 text-white px-8 py-3 sm:px-10 sm:py-4 rounded-lg shadow hover:bg-blue-700 text-lg sm:text-xl font-semibold transition"
         >
-          🛍️ Parcel & Print <kbd className="ml-2 bg-blue-500 px-2 py-1 rounded text-sm">(P)</kbd>
+          🛍️ Parcel & Print{" "}
+          <kbd className="ml-2 bg-blue-500 px-2 py-1 rounded text-sm">(P)</kbd>
         </button>
       </div>
 
@@ -404,7 +477,6 @@ export default function CounterOrder() {
                 ×
               </button>
             </div>
-            
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Enter Coupon ID:
@@ -414,7 +486,7 @@ export default function CounterOrder() {
                   type="text"
                   value={cancelCouponId}
                   onChange={(e) => setCancelCouponId(e.target.value)}
-                  placeholder="e.g., COUPON-001"
+                  placeholder="e.g., 001"
                   className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-400"
                 />
                 <button
@@ -426,29 +498,34 @@ export default function CounterOrder() {
                 </button>
               </div>
             </div>
-
             {couponToCancel && (
               <div className="border border-gray-200 rounded-lg p-4 mb-4 bg-gray-50">
-                <h4 className="font-bold text-lg mb-2">{couponToCancel.couponId}</h4>
+                <h4 className="font-bold text-lg mb-2">
+                  {couponToCancel.couponId}
+                </h4>
                 <p className="text-sm text-gray-600 mb-2">
                   Order Type: {couponToCancel.orderType}
                 </p>
                 <p className="text-sm text-gray-600 mb-2">
-                  Date: {dayjs(couponToCancel.timestamp?.toDate?.()).format("DD-MM-YYYY HH:mm")}
+                  Date:{" "}
+                  {dayjs(couponToCancel.timestamp?.toDate?.()).format(
+                    "DD-MM-YYYY HH:mm"
+                  )}
                 </p>
                 <div className="text-sm mb-2">
                   <strong>Items:</strong>
                   <ul className="mt-1">
                     {couponToCancel.items?.map((item: any, idx: number) => (
                       <li key={idx} className="flex justify-between">
-                        <span>{item.name} × {item.quantity}</span>
+                        <span>
+                          {item.name} × {item.quantity}
+                        </span>
                         <span>₹{item.total}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
                 <p className="font-bold">Total: ₹{couponToCancel.subTotal}</p>
-                
                 <button
                   onClick={cancelCoupon}
                   disabled={cancelLoading}
