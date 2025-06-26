@@ -190,7 +190,7 @@ export default function RunningCoupons() {
                     onClick={() => handlePrintBill(order)}
                     className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 text-sm font-semibold"
                   >
-                    Print Bill
+                    RePrint Bill
                   </button>
                   <button
                     onClick={() => handleCloseCoupon(order.id)}
