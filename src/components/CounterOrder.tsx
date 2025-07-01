@@ -85,6 +85,7 @@ export default function CounterOrder() {
         id: doc.id,
         ...doc.data(),
       })) as CounterItem[];
+     list.sort((a, b) => Number(a.code) - Number(b.code));
       setItems(list);
     };
     fetchItems();
@@ -137,21 +138,81 @@ export default function CounterOrder() {
     window.addEventListener("keydown", handleKeyPress);
     return () => window.removeEventListener("keydown", handleKeyPress);
   }, [quantities, items, paymentMethod]); // Dependencies updated
+// Replace your existing useEffect for search with this updated version:
 
-  useEffect(() => {
-    if (searchCode.trim() === "") {
-      setFilteredItems([]);
-    } else {
-      const codes = searchCode
-        .split(" ")
-        .map((code) => code.trim().toLowerCase())
-        .filter(Boolean);
-      const results = items.filter((item) =>
-        codes.some((code) => item.code?.toLowerCase().includes(code))
-      );
-      setFilteredItems(results);
-    }
-  }, [searchCode, items]);
+// Replace your existing useEffect for search with this updated version:
+
+// Replace your existing useEffect for search with this updated version:
+
+useEffect(() => {
+  if (searchCode.trim() === "") {
+    setFilteredItems([]);
+  } else {
+    const searchTerms = searchCode
+      .split(" ")
+      .map((term) => term.trim())
+      .filter(Boolean);
+    
+    const results = items.filter((item) => {
+      return searchTerms.some((term) => {
+        const termLower = term.toLowerCase();
+        
+        // Try multiple comparison methods for codes
+        const itemCode = item.code;
+        
+        // Method 1: Direct comparison
+        if (itemCode === term) {
+          return true;
+        }
+        
+        // Method 2: Case insensitive comparison
+        if (itemCode?.toString().toLowerCase() === termLower) {
+          return true;
+        }
+        
+        // Method 3: Trimmed comparison (in case of whitespace)
+        if (itemCode?.toString().trim() === term.trim()) {
+          return true;
+        }
+        
+        // Method 4: Case insensitive trimmed comparison
+        if (itemCode?.toString().trim().toLowerCase() === termLower) {
+          return true;
+        }
+        
+        // Check for partial name match (case insensitive)
+        if (item.name?.toLowerCase().includes(termLower)) {
+          return true;
+        }
+        
+        // Check for partial Marathi name match (case insensitive)
+        if (item.nameMarathi?.toLowerCase().includes(termLower)) {
+          return true;
+        }
+        
+        return false;
+      });
+    });
+    
+    // Enhanced debug info
+    console.log('=== SEARCH DEBUG ===');
+    console.log('Search input:', `"${searchCode}"`);
+    console.log('Search terms:', searchTerms);
+    console.log('Total items:', items.length);
+    console.log('All item codes:', items.map(item => `"${item.code}"`).join(', '));
+    console.log('Codes that contain your search term:', 
+      items.filter(item => 
+        searchTerms.some(term => 
+          item.code?.toString().includes(term)
+        )
+      ).map(item => ({ code: `"${item.code}"`, name: item.name }))
+    );
+    console.log('Filtered results:', results.length);
+    console.log('===================');
+    
+    setFilteredItems(results);
+  }
+}, [searchCode, items]);
 
   const handleQuantityChange = (id: string, qty: number) => {
     setQuantities((prev) => ({ ...prev, [id]: qty >= 0 ? qty : 0 }));
@@ -486,7 +547,7 @@ export default function CounterOrder() {
                   type="text"
                   value={cancelCouponId}
                   onChange={(e) => setCancelCouponId(e.target.value)}
-                  placeholder="e.g., 001"
+                  placeholder="e.g., 01"
                   className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-400"
                 />
                 <button
