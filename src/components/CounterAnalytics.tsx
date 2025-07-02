@@ -35,7 +35,7 @@ export default function CounterAnalytics() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   // Updated orderType state to match Firestore values
-  const [orderType, setOrderType] = useState<"Table" | "Parcel" | "all">("all");
+  const [orderType, setOrderType] = useState<"Table" | "Parcel" | "Swiggy/Zomato" | "all">("all");
 
   // --- Start of New Code ---
   const [paymentMethod, setPaymentMethod] = useState<"Cash" | "Online" | "all">(
@@ -248,6 +248,7 @@ useEffect(() => {
             <option value="all">All</option>
             <option value="Table">Table</option>
             <option value="Parcel">Parcel</option>
+            <option value="Swiggy/Zomato">Swiggy/Zomato</option>
           </select>
         </div>
 

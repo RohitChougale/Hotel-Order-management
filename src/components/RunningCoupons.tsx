@@ -35,7 +35,7 @@ export default function RunningCoupons() {
   }, [currentUser]);
 
   const handleCloseCoupon = async (id: string) => {
-    if (confirm("Are you sure you want to close this coupon?")) {
+    
       try {
         await deleteDoc(doc(db, "users", currentUser!.uid, "counterOrder", id));
         // No need to manually refresh - real-time listener will handle it
@@ -43,7 +43,6 @@ export default function RunningCoupons() {
         console.error("Error closing coupon:", error);
         alert("Failed to close coupon. Please try again.");
       }
-    }
   };
 
   const handlePrintBill = (order: any) => {
