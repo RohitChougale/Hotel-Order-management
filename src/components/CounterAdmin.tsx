@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react"; // Added useEffect and useRef
 import { db } from "../firebase";
-import { collection, addDoc, doc, getDoc, setDoc } from "firebase/firestore";
+import { collection, addDoc, doc, getDoc, setDoc, query, where, getDocs } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import { getAuth } from "firebase/auth";
 
@@ -8,6 +8,7 @@ export default function CounterAdmin() {
   const navigate = useNavigate();
   const auth = getAuth();
   const currentUser = auth.currentUser;
+  const [errorMsg, setErrorMsg] = useState("");
 
   // States for existing modals
   const [showModal, setShowModal] = useState(false);
@@ -15,6 +16,7 @@ export default function CounterAdmin() {
   const [hotelModal, setHotelModal] = useState(false);
   const [hotelInfo, setHotelInfo] = useState({ hotelName: "", gstNumber: "", gstPercentage: "" });
   const [isEditingHotelInfo, setIsEditingHotelInfo] = useState(false);
+
 
   // --- Start of New Code: Settings Functionality ---
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -72,18 +74,38 @@ export default function CounterAdmin() {
   };
 
   const handleSubmit = async () => {
-    if (!item.name || !item.nameMarathi || !item.price) {
-      alert("Please fill all fields");
+  if (!item.name || !item.nameMarathi || !item.price) {
+    alert("Please fill all fields");
+    return;
+  }
+
+  try {
+    // Check for duplicate item code
+    const q = query(
+      collection(db, "users", currentUser!.uid, "counterItems"),
+      where("code", "==", item.code)
+    );
+    const snapshot = await getDocs(q);
+
+    if (!snapshot.empty) {
+      setErrorMsg("❗ Item code already exists. Please use a unique code.");
       return;
     }
+
+    // Add new item
     await addDoc(collection(db, "users", currentUser!.uid, "counterItems"), {
       ...item,
       price: parseFloat(item.price),
     });
+
     alert("Item added successfully!");
     setItem({ name: "", nameMarathi: "", price: "", code: "" });
     setShowModal(false);
-  };
+  } catch (error) {
+    console.error("Error adding item:", error);
+    alert("Something went wrong. Please try again.");
+  }
+};
 
   const handleHotelChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setHotelInfo(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -217,22 +239,107 @@ export default function CounterAdmin() {
 
       {/* Existing Add Item Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md animate-fade-in">
-            <h2 className="text-2xl font-bold mb-6 text-orange-700 text-center">Add New Counter Item</h2>
-            <div className="space-y-4">
-              <input type="text" name="name" placeholder="Item Name" value={item.name} onChange={handleChange} className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400" />
-              <input type="text" name="nameMarathi" placeholder="Item Name (Marathi)" value={item.nameMarathi} onChange={handleChange} className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400" />
-              <input type="text" name="code" placeholder="Item Code" value={item.code} onChange={handleChange} className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400" />
-              <input type="number" name="price" placeholder="Price" value={item.price} onChange={handleChange} className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400" />
-            </div>
-            <div className="flex justify-end mt-6 gap-4">
-              <button onClick={() => setShowModal(false)} className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-all">Cancel</button>
-              <button onClick={handleSubmit} className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-semibold transition-all">Save</button>
-            </div>
-          </div>
+  <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md animate-fade-in">
+      <h2 className="text-2xl font-bold mb-6 text-orange-700 text-center">
+        Add New Counter Item
+      </h2>
+
+      <div className="space-y-4">
+        <div>
+          <label
+            htmlFor="itemName"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Item Name
+          </label>
+          <input
+            id="itemName"
+            type="text"
+            name="name"
+            placeholder="Item Name"
+            value={item.name}
+            onChange={handleChange}
+            className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
+          />
         </div>
-      )}
+
+        <div>
+          <label
+            htmlFor="itemNameMarathi"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Item Name (Marathi)
+          </label>
+          <input
+            id="itemNameMarathi"
+            type="text"
+            name="nameMarathi"
+            placeholder="Item Name (Marathi)"
+            value={item.nameMarathi}
+            onChange={handleChange}
+            className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
+          />
+        </div>
+
+        <div>
+          <label
+            htmlFor="itemCode"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Item Code
+          </label>
+          <input
+            id="itemCode"
+            type="text"
+            name="code"
+            placeholder="Item Code"
+            value={item.code}
+            onChange={handleChange}
+            className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
+          />
+          {errorMsg && (
+            <p className="text-sm text-red-600 mt-1">{errorMsg}</p>
+          )}
+        </div>
+
+        <div>
+          <label
+            htmlFor="itemPrice"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Price
+          </label>
+          <input
+            id="itemPrice"
+            type="number"
+            name="price"
+            placeholder="Price"
+            value={item.price}
+            onChange={handleChange}
+            className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end mt-6 gap-4">
+        <button
+          onClick={() => setShowModal(false)}
+          className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-all"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSubmit}
+          className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-semibold transition-all"
+        >
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
     </div>
   );
 }
