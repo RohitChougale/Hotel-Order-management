@@ -3,6 +3,7 @@ import { collection, deleteDoc, doc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 import dayjs from "dayjs";
 import { getAuth } from "firebase/auth";
+import BackButton from "../elements/BackButton";
 
 export default function RunningCoupons() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -44,8 +45,42 @@ export default function RunningCoupons() {
         alert("Failed to close coupon. Please try again.");
       }
   };
+  const isReactNative = () => {
+    return window.ReactNativeWebView !== undefined;
+  };
+
+  // Function to post message to React Native
+  const postMessageToReactNative = (data: any) => {
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify(data));
+    }
+  };
 
   const handlePrintBill = (order: any) => {
+    console.log(order)
+     if (isReactNative()) {
+      // Prepare print data for React Native
+      const printData = {
+        type: 'PRINT_BILL',
+        data: {
+          couponId: order.couponId,
+          orderType: order.orderType,
+          date: dayjs(order.timestamp?.toDate?.()).format("DD-MM-YYYY"),
+          time: dayjs(order.timestamp?.toDate?.()).format("HH:mm"),
+          items: order.items.map((item: any) => ({
+            name: item.name,
+            quantity: item.quantity,
+            total: item.total
+          })),
+          subTotal: order.subTotal,
+          timestamp: order.timestamp
+        }
+      };
+
+      // Post message to React Native
+      postMessageToReactNative(printData);
+      return;
+    }
     // Create print content formatted for 2-inch thermal printer
     const printContent = `
       <div style="width: 58mm; font-family: monospace; font-size: 10px; line-height: 1.2;">
@@ -145,7 +180,8 @@ export default function RunningCoupons() {
 
   return (
     <div className="min-h-screen bg-orange-50 p-6">
-      <h1 className="text-3xl font-extrabold text-orange-700 text-center mb-6">
+      <BackButton/>
+      <h1 className="text-3xl mt-5 font-extrabold text-orange-700 text-center mb-6">
         🔖 Running Coupons
       </h1>
 

@@ -15,6 +15,7 @@ import { db } from "../firebase";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 import { getAuth } from "firebase/auth";
+import BackButton from "../elements/BackButton";
 
 declare global {
   interface Window {
@@ -360,12 +361,13 @@ useEffect(() => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-orange-100 p-4 sm:p-6">
+      
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <h1 className="text-3xl sm:text-4xl font-extrabold text-orange-700">
           🧾 Counter Order
         </h1>
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex flex-col  sm:flex-row gap-2">
           <button
             onClick={() => setShowCancelDialog(true)}
             className="bg-red-600 text-white px-4 py-2 rounded-lg shadow hover:bg-red-700 font-semibold transition text-sm sm:text-base"

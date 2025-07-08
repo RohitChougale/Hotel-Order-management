@@ -103,7 +103,9 @@ export default function CounterHome() {
               ×
             </button>
             <h2 className="text-xl font-semibold text-center text-gray-800">Admin Login</h2>
-
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+                  UserName
+                </label>
             <input
               type="text"
               placeholder="Username"
@@ -111,6 +113,9 @@ export default function CounterHome() {
               value={adminUsername}
               onChange={(e) => setAdminUsername(e.target.value)}
             />
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+                 Password
+                </label>
             <input
               type="password"
               placeholder="Password"

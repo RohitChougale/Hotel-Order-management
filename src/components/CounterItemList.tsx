@@ -8,6 +8,8 @@ import {
   deleteDoc,
 } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
+import { useNavigate } from "react-router-dom";
+import BackButton from "../elements/BackButton";
 
 export default function CounterItemList() {
   const [items, setItems] = useState([]);
@@ -22,6 +24,11 @@ export default function CounterItemList() {
 
   const auth = getAuth();
   const currentUser = auth.currentUser;
+  const navigate = useNavigate();
+  const handleBackClick = () => {
+  navigate('/dashboard'); // or wherever you want to go
+};
+
 
   const fetchItems = async () => {
     const snapshot = await getDocs(
@@ -31,7 +38,34 @@ export default function CounterItemList() {
       id: doc.id,
       ...doc.data(),
     }));
-    setItems(data as any);
+    
+    // Sort items by code in ascending order (numeric sorting)
+    const sortedData = data.sort((a: any, b: any) => {
+      const codeA = a.code || "";
+      const codeB = b.code || "";
+      
+      // Convert codes to numbers for proper numeric comparison
+      const numA = parseInt(codeA, 10);
+      const numB = parseInt(codeB, 10);
+      
+      // If both are valid numbers, sort numerically
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+      
+      // If only one is a number, numbers come first
+      if (!isNaN(numA) && isNaN(numB)) {
+        return -1;
+      }
+      if (isNaN(numA) && !isNaN(numB)) {
+        return 1;
+      }
+      
+      // If both are non-numeric, sort alphabetically
+      return codeA.localeCompare(codeB);
+    });
+    
+    setItems(sortedData as any);
   };
 
   useEffect(() => {
@@ -79,10 +113,10 @@ export default function CounterItemList() {
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
+      <BackButton/>
       <h2 className="text-3xl font-bold text-center text-gray-800 mb-6">
         📋 Counter Items
       </h2>
-
       <div className="w-full max-w-4xl mx-auto">
         {/* Desktop View */}
         <div className="hidden md:block overflow-x-auto">
@@ -240,7 +274,9 @@ export default function CounterItemList() {
             <h2 className="text-xl font-bold text-center text-blue-600">
               Edit Item
             </h2>
-
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+                 Item Name
+                </label>
             <input
               type="text"
               name="name"
@@ -249,6 +285,9 @@ export default function CounterItemList() {
               onChange={handleChange}
               className="w-full border border-gray-300 px-3 py-2 rounded"
             />
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Marathi Name
+                </label>
             <input
               type="text"
               name="nameMarathi"
@@ -257,6 +296,9 @@ export default function CounterItemList() {
               onChange={handleChange}
               className="w-full border border-gray-300 px-3 py-2 rounded"
             />
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+                 Item Code
+                </label>
             <input
               type="text"
               name="code"
@@ -265,6 +307,9 @@ export default function CounterItemList() {
               onChange={handleChange}
               className="w-full border border-gray-300 px-3 py-2 rounded"
             />
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Price
+                </label>
             <input
               type="number"
               name="price"

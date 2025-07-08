@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import { getAuth } from "firebase/auth";
+import BackButton from "../elements/BackButton";
 
 export default function CounterAdmin() {
   const navigate = useNavigate();
@@ -195,6 +196,7 @@ export default function CounterAdmin() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-100 via-orange-50 to-orange-200 p-6 flex flex-col items-center justify-center">
+      <BackButton/>
       <h1 className="text-5xl font-extrabold text-orange-800 mb-10 tracking-wide text-center">
         🍽️ Counter Admin Panel
       </h1>
