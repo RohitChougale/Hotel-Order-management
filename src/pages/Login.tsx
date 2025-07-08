@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "../firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -8,7 +8,29 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [appVersion, setAppVersion] = useState("");
   const navigate = useNavigate();
+  useEffect(() => {
+    const fetchAppInfo = async () => {
+      try {
+        const docRef = doc(db, "appInfo", "version");
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setAppVersion(data.version);
+        } else {
+          setAppVersion("1.0.0");
+        }
+      } catch (error) {
+        console.error("Error fetching app version:", error);
+        setAppVersion("1.0.0");
+      }
+    };
+
+    fetchAppInfo();
+  }, []);
+
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,9 +115,9 @@ export default function Login() {
         </form>
 
         <p className="text-center text-sm text-gray-400 mt-6">
-          © {new Date().getFullYear()} Hotel Manager
+          © {new Date().getFullYear()} Hotel Manager {appVersion}
         </p>
-        <p className="text-center text-sm text-gray-400 mt-6">
+        <p className="text-center text-sm text-gray-400 mt-1">
           Made by PulsesTechnology with ❤️
         </p>
       </div>

@@ -22,6 +22,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import BackButton from "../elements/BackButton";
 
 export default function CounterAnalytics() {
   const [data, setData] = useState<any[]>([]);
@@ -205,6 +206,7 @@ useEffect(() => {
 
   return (
     <div className="p-4 bg-white min-h-screen w-full">
+      <BackButton/>
       <h1 className="text-2xl font-bold text-orange-600 mb-4">
         📊 Counter Item Analytics
       </h1>
