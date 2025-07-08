@@ -24,7 +24,7 @@ export default function CounterHome() {
     try {
       await signOut(auth);
       sessionStorage.removeItem("adminAuthenticated"); // clear on logout
-      navigate("/login");
+      navigate("/");
     } catch (error) {
       console.error("Logout failed:", error);
     }
