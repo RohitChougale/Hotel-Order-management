@@ -20,9 +20,15 @@ export default function RunningCoupons() {
       (snapshot) => {
         const list = snapshot.docs.map((doc) => ({
           id: doc.id,
-          ...doc.data(),
+          ...(doc.data() as any),
         }));
-        setOrders(list);
+        // Sort by timestamp descending
+      const sortedList = list.sort((a, b) => {
+        const timeA = a.timestamp?.toDate?.()?.getTime?.() || 0;
+        const timeB = b.timestamp?.toDate?.()?.getTime?.() || 0;
+        return timeB - timeA;
+      });
+        setOrders(sortedList);
         setLoading(false);
       },
       (error) => {
