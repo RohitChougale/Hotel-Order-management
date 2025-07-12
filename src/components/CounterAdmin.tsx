@@ -34,7 +34,6 @@ export default function CounterAdmin() {
     hotelName: "",
     gstNumber: "",
     gstPercentage: "",
-    logo: "",
   });
   const [isEditingHotelInfo, setIsEditingHotelInfo] = useState(false);
 
@@ -175,7 +174,7 @@ export default function CounterAdmin() {
       setHotelInfo(docSnap.data() as any);
       setIsEditingHotelInfo(true);
     } else {
-      setHotelInfo({ hotelName: "", gstNumber: "", gstPercentage: "", logo:"" });
+      setHotelInfo({ hotelName: "", gstNumber: "", gstPercentage: "" });
       setIsEditingHotelInfo(false);
     }
     setHotelModal(true);
@@ -194,33 +193,6 @@ export default function CounterAdmin() {
     alert("Hotel info saved!");
     setHotelModal(false);
   };
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0];
-  if (file) {
-    // File size validation (5MB limit)
-    if (file.size > 5 * 1024 * 1024) {
-      alert("File size should be less than 5MB");
-      return;
-    }
-    
-    // File type validation
-    if (!file.type.startsWith('image/')) {
-      alert("Please select a valid image file");
-      return;
-    }
-    
-    // Convert to base64
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64String = event.target?.result as string;
-      setHotelInfo((prev) => ({ ...prev, logo: base64String }));
-    };
-    reader.readAsDataURL(file);
-  }
-};
-  const removeLogo = () => {
-  setHotelInfo((prev) => ({ ...prev, logo: "" }));
-};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-100 via-orange-50 to-orange-200 p-6 flex flex-col items-center justify-center">
@@ -347,147 +319,69 @@ export default function CounterAdmin() {
 
       {/* Existing Hotel Modal */}
       {hotelModal && (
-  <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6">
-    <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 md:p-8 w-full max-w-md sm:max-w-lg md:max-w-xl animate-fade-in overflow-y-auto max-h-[90vh]">
-      <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-indigo-700 text-center">
-        {isEditingHotelInfo ? "Edit" : "Add"} Hotel Info
-      </h2>
-
-      <div className="space-y-4">
-        {/* Hotel Name */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Hotel Name
-          </label>
-          <input
-            type="text"
-            name="hotelName"
-            placeholder="Enter hotel name"
-            value={hotelInfo.hotelName}
-            onChange={handleHotelChange}
-            className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          />
-        </div>
-
-        {/* GST Number */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            GST Number
-          </label>
-          <input
-            type="text"
-            name="gstNumber"
-            placeholder="Enter GST number"
-            value={hotelInfo.gstNumber}
-            onChange={handleHotelChange}
-            className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          />
-        </div>
-
-        {/* GST Percentage */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            GST Percentage (%)
-          </label>
-          <input
-            type="number"
-            name="gstPercentage"
-            placeholder="Enter GST %"
-            value={hotelInfo.gstPercentage}
-            onChange={handleHotelChange}
-            className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          />
-        </div>
-
-        {/* Logo Upload */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Hotel Logo
-          </label>
-          <div className="mt-1 flex justify-center px-4 sm:px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg">
-            <div className="space-y-2 text-center w-full">
-              {hotelInfo.logo ? (
-                <div className="space-y-2">
-                  <img
-                    src={hotelInfo.logo}
-                    alt="Hotel Logo"
-                    className="mx-auto h-20 w-20 object-contain rounded-lg"
-                  />
-                  <div className="flex justify-center space-x-4">
-                    <button
-                      type="button"
-                      onClick={() => document.getElementById("logo-upload")?.click()}
-                      className="text-xs text-indigo-600 hover:text-indigo-500"
-                    >
-                      Change
-                    </button>
-                    <button
-                      type="button"
-                      onClick={removeLogo}
-                      className="text-xs text-red-600 hover:text-red-500"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <svg
-                    className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-gray-400"
-                    stroke="currentColor"
-                    fill="none"
-                    viewBox="0 0 48 48"
-                  >
-                    <path
-                      d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  <div className="flex text-sm text-gray-600 justify-center">
-                    <label
-                      htmlFor="logo-upload"
-                      className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500"
-                    >
-                      <span>Upload a logo</span>
-                    </label>
-                    <p className="pl-1">or drag and drop</p>
-                  </div>
-                  <p className="text-xs text-gray-500">PNG, JPG, GIF up to 5MB</p>
-                </div>
-              )}
-              <input
-                id="logo-upload"
-                name="logo-upload"
-                type="file"
-                className="sr-only"
-                accept="image/*"
-                onChange={handleLogoUpload}
-              />
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md animate-fade-in">
+            <h2 className="text-2xl font-bold mb-6 text-indigo-700 text-center">
+              {isEditingHotelInfo ? "Edit" : "Add"} Hotel Info
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Hotel Name
+                </label>
+                <input
+                  type="text"
+                  name="hotelName"
+                  placeholder="Enter hotel name"
+                  value={hotelInfo.hotelName}
+                  onChange={handleHotelChange}
+                  className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  GST Number
+                </label>
+                <input
+                  type="text"
+                  name="gstNumber"
+                  placeholder="Enter GST number"
+                  value={hotelInfo.gstNumber}
+                  onChange={handleHotelChange}
+                  className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  GST Percentage (%)
+                </label>
+                <input
+                  type="number"
+                  name="gstPercentage"
+                  placeholder="Enter GST %"
+                  value={hotelInfo.gstPercentage}
+                  onChange={handleHotelChange}
+                  className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end mt-6 gap-4">
+              <button
+                onClick={() => setHotelModal(false)}
+                className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveHotelInfo}
+                className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold transition-all"
+              >
+                Save
+              </button>
             </div>
           </div>
         </div>
-      </div>
-
-      <div className="flex justify-end mt-6 gap-4 flex-wrap">
-        <button
-          onClick={() => setHotelModal(false)}
-          className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-all w-full sm:w-auto"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={saveHotelInfo}
-          className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold transition-all w-full sm:w-auto"
-        >
-          Save
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-
+      )}
 
       {/* Existing Add Item Modal */}
       {showModal && (
