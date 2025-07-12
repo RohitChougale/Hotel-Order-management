@@ -10,7 +10,6 @@ import {
   deleteDoc,
   query,
   where,
-  runTransaction,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import dayjs from "dayjs";
@@ -44,13 +43,11 @@ export default function CounterOrder() {
     hotelName: string;
     gstNumber?: string;
     gstPercentage?: number;
-    logo: string;
   } | null>(null);
   const [searchCode, setSearchCode] = useState("");
   const [filteredItems, setFilteredItems] = useState<CounterItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<"Cash" | "Online">("Cash");
   const [numberOfPrints, setNumberOfPrints] = useState(1);
-  const [isPrinting, setIsPrinting] = useState(false);
 
   // Cancel coupon states
   const [showCancelDialog, setShowCancelDialog] = useState(false);
@@ -80,42 +77,49 @@ export default function CounterOrder() {
     return { orderItems, subTotal, grandTotal };
   }, [items, quantities]);
 
-    useEffect(() => {
-    if (!currentUser) return; // Exit if user is not logged in
-
-    const fetchInitialData = async () => {
-      // Set up all queries to run in parallel
-      const itemsQuery = getDocs(collection(db, "users", currentUser.uid, "counterItems"));
-      const hotelInfoQuery = getDoc(doc(db, "users", currentUser.uid, "counterHotelInfo", "info"));
-      const printSettingsQuery = getDoc(doc(db, "users", currentUser.uid, "settings", "userSettings"));
-
-      // Wait for all of them to complete
-      const [itemsSnapshot, hotelInfoSnap, settingsSnap] = await Promise.all([
-        itemsQuery, 
-        hotelInfoQuery, 
-        printSettingsQuery
-      ]);
-
-      // Process Items
-      const list = itemsSnapshot.docs.map((doc) => ({
+  useEffect(() => {
+    const fetchItems = async () => {
+      const snapshot = await getDocs(
+        collection(db, "users", currentUser!.uid, "counterItems")
+      );
+      const list = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       })) as CounterItem[];
-      list.sort((a, b) => Number(a.code) - Number(b.code));
+     list.sort((a, b) => Number(a.code) - Number(b.code));
       setItems(list);
+    };
+    fetchItems();
 
-      // Process Hotel Info
-      if (hotelInfoSnap.exists()) setHotelInfo(hotelInfoSnap.data() as any);
+    const fetchHotelInfo = async () => {
+      const docRef = doc(
+        db,
+        "users",
+        currentUser!.uid,
+        "counterHotelInfo",
+        "info"
+      );
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) setHotelInfo(docSnap.data() as any);
+    };
+    fetchHotelInfo();
 
-      // Process Print Settings
+    const fetchPrintSettings = async () => {
+      const settingsRef = doc(
+        db,
+        "users",
+        currentUser!.uid,
+        "settings",
+        "userSettings"
+      );
+      const settingsSnap = await getDoc(settingsRef);
       if (settingsSnap.exists()) {
         const data = settingsSnap.data();
         if (data.numberOfPrints) setNumberOfPrints(data.numberOfPrints);
       }
     };
-
-    fetchInitialData().catch(console.error); // Run the function and log any errors
-  }, [currentUser]);
+    fetchPrintSettings();
+  }, []);
 
   useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
@@ -218,106 +222,81 @@ useEffect(() => {
 
   const getTodayDate = () => dayjs().format("YYYY-MM-DD");
 
-   const getNextCouponNumber = async () => {
-    const metaRef = doc(db, "users", currentUser!.uid, "counterMeta", "couponTracker");
-    
-    // Use a transaction to safely read and write the coupon number
-    const newCouponNumber = await runTransaction(db, async (transaction) => {
-      const metaDoc = await transaction.get(metaRef);
-      const today = dayjs().format("YYYY-MM-DD");
-      let nextCoupon = 1;
+  const getNextCouponNumber = async () => {
+    const metaRef = doc(
+      db,
+      "users",
+      currentUser!.uid,
+      "counterMeta",
+      "couponTracker"
+    );
+    const metaSnap = await getDoc(metaRef);
+    const today = getTodayDate();
+    let newCouponNumber = 1;
 
-      if (metaDoc.exists()) {
-        const data = metaDoc.data();
-        // Reset counter if it's a new day
-        if (data.lastResetDate === today) {
-          nextCoupon = data.lastCouponNumber + 1;
-        }
+    if (metaSnap.exists()) {
+      const data = metaSnap.data();
+      if (data.lastResetDate === today) {
+        newCouponNumber = data.lastCouponNumber + 1;
+        if (newCouponNumber > 100) newCouponNumber = 1;
       }
-      
-      // Update the document within the transaction
-      transaction.set(metaRef, {
-        lastCouponNumber: nextCoupon,
-        lastResetDate: today,
-      });
-      
-      return nextCoupon; // Return the new number
+    }
+    await setDoc(metaRef, {
+      lastCouponNumber: newCouponNumber,
+      lastResetDate: today,
     });
-
     return newCouponNumber;
   };
 
-    const handleOrder = async (orderType: "Table" | "Parcel" | "Swiggy/Zomato") => {
-    // 1. Add a guard clause to prevent multiple clicks
-    if (isPrinting) {
-      console.log("An order is already being processed. Please wait.");
-      return;
-    }
-
+  const handleOrder = async (orderType: "Table" | "Parcel" | "Swiggy/Zomato") => {
     const { orderItems, subTotal } = currentOrderDetails;
     if (orderItems.length === 0) {
       alert("Please add at least one item.");
       return;
     }
-    
-    // 2. Lock the UI immediately
-    setIsPrinting(true); 
-    setOrderPlaced(true); 
+    const timestamp = Timestamp.now();
+    const couponNumber = await getNextCouponNumber();
+    const couponId = `${String(couponNumber).padStart(2, "0")}`;
 
-    try {
-      const couponNumber = await getNextCouponNumber();
-      const couponId = `${String(couponNumber).padStart(2, "0")}`;
+    const orderData = {
+      items: orderItems.map(({ id, ...rest }) => rest),
+      couponId,
+      subTotal,
+      timestamp,
+      orderType,
+      payment: paymentMethod,
+    };
+    await addDoc(
+      collection(db, "users", currentUser!.uid, "counterOrder"),
+      orderData
+    );
+    await addDoc(
+      collection(db, "users", currentUser!.uid, "counterbill"),
+      orderData
+    );
 
-      const timestamp = Timestamp.now();
-      const orderData = {
-        items: orderItems.map(({ id, ...rest }) => rest),
-        couponId,
-        subTotal,
-        timestamp,
-        orderType,
-        payment: paymentMethod,
-      };
+    const printPayload = {
+      ...orderData,
+      hotelName: hotelInfo?.hotelName || "",
+      date: dayjs().format("DD-MM-YYYY HH:mm"),
+    };
+    setPrintData(printPayload);
+    setOrderPlaced(true);
 
-      const printPayload = {
-        ...orderData,
-        hotelName: hotelInfo?.hotelName || "",
-        date: dayjs(timestamp.toDate()).format("DD-MM-YYYY HH:mm"),
-      };
-      
-      setPrintData(printPayload);
-      
-      setTimeout(() => {
-        if (window.ReactNativeWebView?.postMessage) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({ type: "print", payload: printPayload }));
-        } else {
-          for (let i = 0; i < numberOfPrints; i++) {
-            setTimeout(() => window.print(), i * 500);
-          }
-        }
-      }, 100);
-
-      const counterOrderPromise = addDoc(collection(db, "users", currentUser!.uid, "counterOrder"), orderData);
-      const counterBillPromise = addDoc(collection(db, "users", currentUser!.uid, "counterbill"), orderData);
-
-      await Promise.all([counterOrderPromise, counterBillPromise]);
-        
-    } catch (error) {
-      console.error("Error placing order:", error);
-      alert("There was an error placing your order. Please try again.");
-      setIsPrinting(false); // Unlock on error
-      setOrderPlaced(false);
-      setPrintData(null);
-      return;
+    if (window.ReactNativeWebView?.postMessage) {
+      window.ReactNativeWebView.postMessage(
+        JSON.stringify({ type: "print", payload: printPayload })
+      );
+    } else {
+      for (let i = 0; i < numberOfPrints; i++) {
+        setTimeout(() => window.print(), i * 1000);
+      }
     }
-
-    // --- CLEANUP: Reset UI state after a longer delay ---
-    // Make this timeout longer than your expected print time
     setTimeout(() => {
       setQuantities({});
       setOrderPlaced(false);
       setPrintData(null);
-      setIsPrinting(false); // 3. Unlock the UI only when everything is done
-    }, 5000); // Increased to 3 seconds for safety
+    }, 1000);
   };
 
   // --- Cancel coupon functions remain unchanged ---
@@ -555,25 +534,22 @@ useEffect(() => {
       <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4 text-center">
         <button
           onClick={() => handleOrder("Table")}
-          disabled={isPrinting}
           className="bg-green-600 text-white px-8 py-3 sm:px-10 sm:py-4 rounded-lg shadow hover:bg-green-700 text-lg sm:text-xl font-semibold transition"
         >
-          {isPrinting ? "Processing..." : "✅ Table Order & Print"}
+          ✅ Table Order & Print{" "}
         </button>
         <button
           onClick={() => handleOrder("Parcel")}
-          disabled={isPrinting}
           className="bg-blue-600 text-white px-8 py-3 sm:px-10 sm:py-4 rounded-lg shadow hover:bg-blue-700 text-lg sm:text-xl font-semibold transition"
         >
-          {isPrinting ? "Processing..." : "🛍️ Parcel & Print"}
+          🛍️ Parcel & Print{" "}
           
         </button>
         <button
   onClick={() => handleOrder("Swiggy/Zomato")}
-  disabled={isPrinting}
   className="bg-purple-600 text-white px-8 py-3 sm:px-10 sm:py-4 rounded-lg shadow hover:bg-purple-700 text-lg sm:text-xl font-semibold transition"
 >
-  {isPrinting ? "Processing..." : "🛵 Swiggy/Zomato & Print"}
+  🛵 Swiggy/Zomato & Print{" "}
 </button>
       </div>
 
@@ -656,17 +632,9 @@ useEffect(() => {
       {orderPlaced && printData && (
         <div className="print-only p-2 mt-10" ref={printRef}>
           <div className="text-center text-sm border p-2 w-60 mx-auto bg-white rounded shadow">
-             {hotelInfo?.logo ? (
-        <img
-          src={hotelInfo.logo}
-          alt="Hotel Logo"
-          className="w-20 h-20 mx-auto mb-2 object-contain"
-        />
-      ) : (
-        <h2 className="font-bold text-3xl mb-2">
-          🍽️ {hotelInfo?.hotelName}
-        </h2>
-      )}
+            <h2 className="font-bold text-3xl mb-2">
+              🍽️ {hotelInfo?.hotelName}
+            </h2>
             <p className="text-2xl font-bold mb-1">{printData.couponId}</p>
             <p className="text-lx mb-1">Date: {printData.date}</p>
             <p className="text-lx mb-1">Order Type: {printData.orderType}</p>
