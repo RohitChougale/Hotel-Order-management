@@ -49,6 +49,10 @@ export default function CounterOrder() {
   const [paymentMethod, setPaymentMethod] = useState<"Cash" | "Online">("Cash");
   const [numberOfPrints, setNumberOfPrints] = useState(1);
 
+  // New states for fixing the bugs
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingOrderType, setProcessingOrderType] = useState<string | null>(null);
+
   // Cancel coupon states
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelCouponId, setCancelCouponId] = useState("");
@@ -128,93 +132,92 @@ export default function CounterOrder() {
         event.target instanceof HTMLTextAreaElement
       )
         return;
-     if (event.key.toLowerCase() === "t") {
-  event.preventDefault();
-  handleOrder("Table");
-} else if (event.key.toLowerCase() === "p") {
-  event.preventDefault();
-  handleOrder("Parcel");
-} else if (event.key.toLowerCase() === "s") {
-  event.preventDefault();
-  handleOrder("Swiggy/Zomato");
-}
+      
+      // Prevent hotkeys when processing
+      if (isProcessing) return;
+      
+      if (event.key.toLowerCase() === "t") {
+        event.preventDefault();
+        handleOrder("Table");
+      } else if (event.key.toLowerCase() === "p") {
+        event.preventDefault();
+        handleOrder("Parcel");
+      } else if (event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        handleOrder("Swiggy/Zomato");
+      }
     };
     window.addEventListener("keydown", handleKeyPress);
     return () => window.removeEventListener("keydown", handleKeyPress);
-  }, [quantities, items, paymentMethod]); // Dependencies updated
-// Replace your existing useEffect for search with this updated version:
+  }, [quantities, items, paymentMethod, isProcessing]); // Added isProcessing dependency
 
-// Replace your existing useEffect for search with this updated version:
-
-// Replace your existing useEffect for search with this updated version:
-
-useEffect(() => {
-  if (searchCode.trim() === "") {
-    setFilteredItems([]);
-  } else {
-    const searchTerms = searchCode
-      .split(" ")
-      .map((term) => term.trim())
-      .filter(Boolean);
-    
-    const results = items.filter((item) => {
-      return searchTerms.some((term) => {
-        const termLower = term.toLowerCase();
-        
-        // Try multiple comparison methods for codes
-        const itemCode = item.code;
-        
-        // Method 1: Direct comparison
-        if (itemCode === term) {
-          return true;
-        }
-        
-        // Method 2: Case insensitive comparison
-        if (itemCode?.toString().toLowerCase() === termLower) {
-          return true;
-        }
-        
-        // Method 3: Trimmed comparison (in case of whitespace)
-        if (itemCode?.toString().trim() === term.trim()) {
-          return true;
-        }
-        
-        // Method 4: Case insensitive trimmed comparison
-        if (itemCode?.toString().trim().toLowerCase() === termLower) {
-          return true;
-        }
-        
-        // Check for partial name match (case insensitive)
-        if (item.name?.toLowerCase().startsWith(termLower)) return true;
-        
-        // Check for partial Marathi name match (case insensitive)
-        if (item.nameMarathi?.toLowerCase().includes(termLower)) {
-          return true;
-        }
-        
-        return false;
+  useEffect(() => {
+    if (searchCode.trim() === "") {
+      setFilteredItems([]);
+    } else {
+      const searchTerms = searchCode
+        .split(" ")
+        .map((term) => term.trim())
+        .filter(Boolean);
+      
+      const results = items.filter((item) => {
+        return searchTerms.some((term) => {
+          const termLower = term.toLowerCase();
+          
+          // Try multiple comparison methods for codes
+          const itemCode = item.code;
+          
+          // Method 1: Direct comparison
+          if (itemCode === term) {
+            return true;
+          }
+          
+          // Method 2: Case insensitive comparison
+          if (itemCode?.toString().toLowerCase() === termLower) {
+            return true;
+          }
+          
+          // Method 3: Trimmed comparison (in case of whitespace)
+          if (itemCode?.toString().trim() === term.trim()) {
+            return true;
+          }
+          
+          // Method 4: Case insensitive trimmed comparison
+          if (itemCode?.toString().trim().toLowerCase() === termLower) {
+            return true;
+          }
+          
+          // Check for partial name match (case insensitive)
+          if (item.name?.toLowerCase().startsWith(termLower)) return true;
+          
+          // Check for partial Marathi name match (case insensitive)
+          if (item.nameMarathi?.toLowerCase().includes(termLower)) {
+            return true;
+          }
+          
+          return false;
+        });
       });
-    });
-    
-    // Enhanced debug info
-    console.log('=== SEARCH DEBUG ===');
-    console.log('Search input:', `"${searchCode}"`);
-    console.log('Search terms:', searchTerms);
-    console.log('Total items:', items.length);
-    console.log('All item codes:', items.map(item => `"${item.code}"`).join(', '));
-    console.log('Codes that contain your search term:', 
-      items.filter(item => 
-        searchTerms.some(term => 
-          item.code?.toString().includes(term)
-        )
-      ).map(item => ({ code: `"${item.code}"`, name: item.name }))
-    );
-    console.log('Filtered results:', results.length);
-    console.log('===================');
-    
-    setFilteredItems(results);
-  }
-}, [searchCode, items]);
+      
+      // Enhanced debug info
+      console.log('=== SEARCH DEBUG ===');
+      console.log('Search input:', `"${searchCode}"`);
+      console.log('Search terms:', searchTerms);
+      console.log('Total items:', items.length);
+      console.log('All item codes:', items.map(item => `"${item.code}"`).join(', '));
+      console.log('Codes that contain your search term:', 
+        items.filter(item => 
+          searchTerms.some(term => 
+            item.code?.toString().includes(term)
+          )
+        ).map(item => ({ code: `"${item.code}"`, name: item.name }))
+      );
+      console.log('Filtered results:', results.length);
+      console.log('===================');
+      
+      setFilteredItems(results);
+    }
+  }, [searchCode, items]);
 
   const handleQuantityChange = (id: string, qty: number) => {
     setQuantities((prev) => ({ ...prev, [id]: qty >= 0 ? qty : 0 }));
@@ -254,6 +257,13 @@ useEffect(() => {
       alert("Please add at least one item.");
       return;
     }
+
+    // Prevent multiple orders
+    if (isProcessing) return;
+
+    setIsProcessing(true);
+    setProcessingOrderType(orderType);
+
     const timestamp = Timestamp.now();
     const couponNumber = await getNextCouponNumber();
     const couponId = `${String(couponNumber).padStart(2, "0")}`;
@@ -266,20 +276,14 @@ useEffect(() => {
       orderType,
       payment: paymentMethod,
     };
-    await addDoc(
-      collection(db, "users", currentUser!.uid, "counterOrder"),
-      orderData
-    );
-    await addDoc(
-      collection(db, "users", currentUser!.uid, "counterbill"),
-      orderData
-    );
 
     const printPayload = {
       ...orderData,
       hotelName: hotelInfo?.hotelName || "",
       date: dayjs().format("DD-MM-YYYY HH:mm"),
     };
+
+    // Fix 2: Start printing immediately
     setPrintData(printPayload);
     setOrderPlaced(true);
 
@@ -292,11 +296,24 @@ useEffect(() => {
         setTimeout(() => window.print(), i * 1000);
       }
     }
+
+    // Fix 2: Store in Firebase in background (don't await)
+    Promise.all([
+      addDoc(collection(db, "users", currentUser!.uid, "counterOrder"), orderData),
+      addDoc(collection(db, "users", currentUser!.uid, "counterbill"), orderData)
+    ]).catch((error) => {
+      console.error("Error storing order in Firebase:", error);
+      // You might want to show an error message to the user here
+    });
+
+    // Fix 1: Reset states and enable buttons after 5 seconds
     setTimeout(() => {
       setQuantities({});
       setOrderPlaced(false);
       setPrintData(null);
-    }, 1000);
+      setIsProcessing(false);
+      setProcessingOrderType(null);
+    }, 5000);
   };
 
   // --- Cancel coupon functions remain unchanged ---
@@ -394,30 +411,30 @@ useEffect(() => {
           </p>
         </div>
         <div className="flex items-center justify-center gap-6 mb-6">
-  <label className="flex items-center gap-3 text-base sm:text-lg font-medium text-gray-800">
-    <input
-      type="radio"
-      name="payment"
-      value="Cash"
-      checked={paymentMethod === "Cash"}
-      onChange={() => setPaymentMethod("Cash")}
-      className="accent-green-600 w-5 h-5"
-    />
-    <span>💵 Cash</span>
-  </label>
+          <label className="flex items-center gap-3 text-base sm:text-lg font-medium text-gray-800">
+            <input
+              type="radio"
+              name="payment"
+              value="Cash"
+              checked={paymentMethod === "Cash"}
+              onChange={() => setPaymentMethod("Cash")}
+              className="accent-green-600 w-5 h-5"
+            />
+            <span>💵 Cash</span>
+          </label>
 
-  <label className="flex items-center gap-3 text-base sm:text-lg font-medium text-gray-800">
-    <input
-      type="radio"
-      name="payment"
-      value="Online"
-      checked={paymentMethod === "Online"}
-      onChange={() => setPaymentMethod("Online")}
-      className="accent-blue-600 w-5 h-5"
-    />
-    <span>📲 Online</span>
-  </label>
-</div>
+          <label className="flex items-center gap-3 text-base sm:text-lg font-medium text-gray-800">
+            <input
+              type="radio"
+              name="payment"
+              value="Online"
+              checked={paymentMethod === "Online"}
+              onChange={() => setPaymentMethod("Online")}
+              className="accent-blue-600 w-5 h-5"
+            />
+            <span>📲 Online</span>
+          </label>
+        </div>
 
         <div className="flex items-center justify-center relative">
           <input
@@ -443,52 +460,51 @@ useEffect(() => {
         🧺 Available Items
       </h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-  {(filteredItems.length > 0 ? filteredItems : items).map((item) => (
-    <div
-      key={item.id}
-      className="bg-white rounded-xl shadow-md p-4 border relative hover:shadow-lg transition flex flex-col"
-    >
-      <div className="absolute top-1 right-2 text-orange-800 text-xs font-bold px-1 rounded">
-        Code: {item.code}
-      </div>
+        {(filteredItems.length > 0 ? filteredItems : items).map((item) => (
+          <div
+            key={item.id}
+            className="bg-white rounded-xl shadow-md p-4 border relative hover:shadow-lg transition flex flex-col"
+          >
+            <div className="absolute top-1 right-2 text-orange-800 text-xs font-bold px-1 rounded">
+              Code: {item.code}
+            </div>
 
-      <div className="flex-grow">
-        <h2 className="text-base font-bold text-gray-800 mb-1">{item.name}</h2>
-        <p className="text-gray-500 font-medium text-sm mb-2">₹{item.price}</p>
-      </div>
+            <div className="flex-grow">
+              <h2 className="text-base font-bold text-gray-800 mb-1">{item.name}</h2>
+              <p className="text-gray-500 font-medium text-sm mb-2">₹{item.price}</p>
+            </div>
 
-      <div className="flex items-center justify-center gap-2 mt-2">
-        <button
-          onClick={() =>
-            handleQuantityChange(item.id, Math.max((quantities[item.id] || 0) - 1, 0))
-          }
-          className="bg-gray-200 hover:bg-gray-300 text-xl font-bold w-8 h-8 rounded"
-        >
-          –
-        </button>
-        <input
-          type="number"
-          min={0}
-          value={quantities[item.id] || ""}
-          onChange={(e) =>
-            handleQuantityChange(item.id, parseInt(e.target.value) || 0)
-          }
-          className="w-14 border border-gray-300 px-2 py-1 rounded-md text-center focus:outline-none focus:ring-2 focus:ring-orange-400"
-          placeholder="Qty"
-        />
-        <button
-          onClick={() =>
-            handleQuantityChange(item.id, (quantities[item.id] || 0) + 1)
-          }
-          className="bg-gray-200 hover:bg-gray-300 text-xl font-bold w-8 h-8 rounded"
-        >
-          +
-        </button>
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <button
+                onClick={() =>
+                  handleQuantityChange(item.id, Math.max((quantities[item.id] || 0) - 1, 0))
+                }
+                className="bg-gray-200 hover:bg-gray-300 text-xl font-bold w-8 h-8 rounded"
+              >
+                –
+              </button>
+              <input
+                type="number"
+                min={0}
+                value={quantities[item.id] || ""}
+                onChange={(e) =>
+                  handleQuantityChange(item.id, parseInt(e.target.value) || 0)
+                }
+                className="w-14 border border-gray-300 px-2 py-1 rounded-md text-center focus:outline-none focus:ring-2 focus:ring-orange-400"
+                placeholder="Qty"
+              />
+              <button
+                onClick={() =>
+                  handleQuantityChange(item.id, (quantities[item.id] || 0) + 1)
+                }
+                className="bg-gray-200 hover:bg-gray-300 text-xl font-bold w-8 h-8 rounded"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
-    </div>
-  ))}
-</div>
-
 
       {/* --- Start of New Bill Preview Section --- */}
       {currentOrderDetails.orderItems.length > 0 && (
@@ -534,23 +550,49 @@ useEffect(() => {
       <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4 text-center">
         <button
           onClick={() => handleOrder("Table")}
-          className="bg-green-600 text-white px-8 py-3 sm:px-10 sm:py-4 rounded-lg shadow hover:bg-green-700 text-lg sm:text-xl font-semibold transition"
+          disabled={isProcessing}
+          className={`px-8 py-3 sm:px-10 sm:py-4 rounded-lg shadow text-lg sm:text-xl font-semibold transition ${
+            isProcessing
+              ? processingOrderType === "Table"
+                ? "bg-green-500 text-white cursor-not-allowed"
+                : "bg-gray-400 text-gray-600 cursor-not-allowed"
+              : "bg-green-600 text-white hover:bg-green-700"
+          }`}
         >
-          ✅ Table Order & Print{" "}
+          {isProcessing && processingOrderType === "Table"
+            ? "Processing..."
+            : "✅ Table Order & Print"}
         </button>
         <button
           onClick={() => handleOrder("Parcel")}
-          className="bg-blue-600 text-white px-8 py-3 sm:px-10 sm:py-4 rounded-lg shadow hover:bg-blue-700 text-lg sm:text-xl font-semibold transition"
+          disabled={isProcessing}
+          className={`px-8 py-3 sm:px-10 sm:py-4 rounded-lg shadow text-lg sm:text-xl font-semibold transition ${
+            isProcessing
+              ? processingOrderType === "Parcel"
+                ? "bg-blue-500 text-white cursor-not-allowed"
+                : "bg-gray-400 text-gray-600 cursor-not-allowed"
+              : "bg-blue-600 text-white hover:bg-blue-700"
+          }`}
         >
-          🛍️ Parcel & Print{" "}
-          
+          {isProcessing && processingOrderType === "Parcel"
+            ? "Processing..."
+            : "🛍️ Parcel & Print"}
         </button>
         <button
-  onClick={() => handleOrder("Swiggy/Zomato")}
-  className="bg-purple-600 text-white px-8 py-3 sm:px-10 sm:py-4 rounded-lg shadow hover:bg-purple-700 text-lg sm:text-xl font-semibold transition"
->
-  🛵 Swiggy/Zomato & Print{" "}
-</button>
+          onClick={() => handleOrder("Swiggy/Zomato")}
+          disabled={isProcessing}
+          className={`px-8 py-3 sm:px-10 sm:py-4 rounded-lg shadow text-lg sm:text-xl font-semibold transition ${
+            isProcessing
+              ? processingOrderType === "Swiggy/Zomato"
+                ? "bg-purple-500 text-white cursor-not-allowed"
+                : "bg-gray-400 text-gray-600 cursor-not-allowed"
+              : "bg-purple-600 text-white hover:bg-purple-700"
+          }`}
+        >
+          {isProcessing && processingOrderType === "Swiggy/Zomato"
+            ? "Processing..."
+            : "🛵 Swiggy/Zomato & Print"}
+        </button>
       </div>
 
       {/* Cancel Coupon Dialog */}
