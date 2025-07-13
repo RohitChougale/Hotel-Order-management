@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
-import { collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, setDoc } from "firebase/firestore";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  onSnapshot,
+  setDoc,
+} from "firebase/firestore";
 import { db } from "../firebase";
 import dayjs from "dayjs";
 import { getAuth } from "firebase/auth";
@@ -13,17 +21,17 @@ export default function RunningCoupons() {
   const [allItemNames, setAllItemNames] = useState<string[]>([]);
   const formatDate = (date: Date) => dayjs(date).format("YYYY-MM-DD");
 
-
   const auth = getAuth();
   const currentUser = auth.currentUser;
 
-  // 🔹 Fetch top items from Firestore on mount
   useEffect(() => {
     if (!currentUser) return;
 
     const fetchTopItems = async () => {
       try {
-        const topDoc = await getDoc(doc(db, "users", currentUser.uid, "settings", "topItems"));
+        const topDoc = await getDoc(
+          doc(db, "users", currentUser.uid, "settings", "topItems")
+        );
         if (topDoc.exists()) {
           const data = topDoc.data();
           setTopItems(data.items || []);
@@ -55,13 +63,6 @@ export default function RunningCoupons() {
         });
         setOrders(sortedList);
         setLoading(false);
-
-        // 🔹 Extract unique item names
-        const allNames = new Set<string>();
-        sortedList.forEach((order) => {
-          order.items.forEach((item: any) => allNames.add(item.name));
-        });
-        setAllItemNames(Array.from(allNames));
       },
       (error) => {
         console.error("Error fetching orders:", error);
@@ -71,6 +72,30 @@ export default function RunningCoupons() {
 
     return () => unsubscribe();
   }, [currentUser]);
+
+  useEffect(() => {
+  if (!currentUser) return;
+
+  const fetchCounterItems = async () => {
+    try {
+      const snapshot = await getDocs(collection(db, "users", currentUser.uid, "counterItems"));
+      const names: string[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.name) {
+          names.push(data.name);
+        }
+      });
+      setAllItemNames(names);
+      console.log("Fetched counter item names:", names);
+    } catch (error) {
+      console.error("Failed to load counter items:", error);
+    }
+  };
+
+  fetchCounterItems();
+}, [currentUser]);
+
 
   const handleCloseCoupon = async (id: string) => {
     try {
@@ -99,7 +124,7 @@ export default function RunningCoupons() {
           hotelName:'Reprinted',
           couponId: order.couponId,
           orderType: order.orderType,
-          date: dayjs(order.timestamp?.toDate?.()).format("DD-MM-YYYY"),
+          date: dayjs(order.timestamp?.toDate?.()).format("DD-MM-YYYY HH:mm"),
           time: dayjs(order.timestamp?.toDate?.()).format("HH:mm"),
           items: order.items.map((item: any) => ({
             name: item.name,
@@ -114,58 +139,10 @@ export default function RunningCoupons() {
       return;
     }
 
-    // Web printing fallback
-    const printContent = `
-      <div style="width: 58mm; font-family: monospace; font-size: 10px; line-height: 1.2;">
-        <div style="text-align: center; margin-bottom: 8px;">
-          <div style="font-size: 12px; font-weight: bold;">BILL RECEIPT</div>
-          <div style="border-bottom: 1px dashed #000; margin: 4px 0;"></div>
-        </div>
-        <div style="margin-bottom: 8px;">
-          <div><strong>Coupon: ${order.couponId}</strong></div>
-          <div>Type: ${order.orderType}</div>
-          <div>Date: ${dayjs(order.timestamp?.toDate?.()).format("DD-MM-YYYY")}</div>
-          <div>Time: ${dayjs(order.timestamp?.toDate?.()).format("HH:mm")}</div>
-        </div>
-        <div style="border-bottom: 1px dashed #000; margin: 4px 0;"></div>
-        <div style="margin-bottom: 8px;">
-          <div style="display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 2px;">
-            <span>ITEM</span>
-            <span>QTY</span>
-            <span>AMT</span>
-          </div>
-          ${order.items.map((item: any) => `
-            <div style="display: flex; justify-content: space-between; margin-bottom: 1px; font-size: 9px;">
-              <span style="flex: 1;">${item.name}</span>
-              <span style="width: 15mm; text-align: center;">${item.quantity}</span>
-              <span style="width: 15mm; text-align: right;">₹${item.total}</span>
-            </div>
-          `).join('')}
-        </div>
-        <div style="border-bottom: 1px dashed #000; margin: 4px 0;"></div>
-        <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 11px; margin-bottom: 8px;">
-          <span>TOTAL:</span>
-          <span>₹${order.subTotal}</span>
-        </div>
-        <div style="text-align: center; font-size: 8px; margin-top: 8px;">
-          <div>Thank You!</div>
-          <div style="margin-top: 4px;">------- END OF RECEIPT -------</div>
-        </div>
-      </div>
-    `;
-
+    const printContent = `...`;
     const printWindow = window.open('', '_blank', 'width=300,height=600');
     if (printWindow) {
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html><head><title>Print Bill</title>
-        <style>
-          @media print {
-            body { margin: 0; padding: 2mm; }
-            @page { size: 58mm auto; margin: 0; }
-          }
-        </style></head><body>${printContent}</body></html>
-      `);
+      printWindow.document.write(`...`);
       printWindow.document.close();
       printWindow.onload = () => {
         setTimeout(() => {
@@ -177,36 +154,33 @@ export default function RunningCoupons() {
       alert("Pop-up blocked. Please allow pop-ups for this site to print bills.");
     }
   };
+
   useEffect(() => {
-  if (!currentUser) return;
+    if (!currentUser) return;
 
-  const runDailyCleanup = async () => {
-    try {
-      const today = formatDate(new Date());
-      const clearRef = doc(db, "users", currentUser.uid, "settings", "lastCouponClear");
-      const clearSnap = await getDoc(clearRef);
+    const runDailyCleanup = async () => {
+      try {
+        const today = formatDate(new Date());
+        const clearRef = doc(db, "users", currentUser.uid, "settings", "lastCouponClear");
+        const clearSnap = await getDoc(clearRef);
+        const lastClear = clearSnap.exists() ? clearSnap.data()?.date : null;
 
-      const lastClear = clearSnap.exists() ? clearSnap.data()?.date : null;
-
-      if (lastClear !== today) {
-        // Delete all running coupons
-        const snapshot = await getDocs(collection(db, "users", currentUser.uid, "counterOrder"));
-        const batch = snapshot.docs.map((docSnap) =>
-          deleteDoc(doc(db, "users", currentUser.uid, "counterOrder", docSnap.id))
-        );
-        await Promise.all(batch);
-
-        // Save today's date as last cleared
-        await setDoc(clearRef, { date: today });
-        console.log("Daily coupon cleanup completed.");
+        if (lastClear !== today) {
+          const snapshot = await getDocs(collection(db, "users", currentUser.uid, "counterOrder"));
+          const batch = snapshot.docs.map((docSnap) =>
+            deleteDoc(doc(db, "users", currentUser.uid, "counterOrder", docSnap.id))
+          );
+          await Promise.all(batch);
+          await setDoc(clearRef, { date: today });
+          console.log("Daily coupon cleanup completed.");
+        }
+      } catch (err) {
+        console.error("Daily cleanup failed:", err);
       }
-    } catch (err) {
-      console.error("Daily cleanup failed:", err);
-    }
-  };
+    };
 
-  runDailyCleanup();
-}, [currentUser]);
+    runDailyCleanup();
+  }, [currentUser]);
 
   const topItemSummary = topItems.map((itemName) => {
     let totalQty = 0;
@@ -245,7 +219,6 @@ export default function RunningCoupons() {
         🔖 Running Coupons
       </h1>
 
-      {/* 🔹 Top items summary */}
       {topItems.length > 0 && (
         <div className="text-center mb-6">
           <h3 className="text-lg font-semibold text-gray-700">Top Items Summary</h3>
@@ -295,7 +268,6 @@ export default function RunningCoupons() {
         </div>
       )}
 
-      {/* 🔹 Item Selector Modal */}
       {showItemSelector && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-xl shadow-lg w-full max-w-sm mx-4">
@@ -306,7 +278,7 @@ export default function RunningCoupons() {
               {[0, 1, 2].map((idx) => (
                 <select
                   key={idx}
-                  className="w-full border p-2 rounded-md"
+                  className="block w-full border p-2 rounded-md text-sm sm:text-base max-h-48 overflow-y-auto"
                   value={topItems[idx] || ""}
                   onChange={(e) => {
                     const newItems = [...topItems];

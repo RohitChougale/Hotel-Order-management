@@ -306,9 +306,9 @@ export default function CounterOrder() {
       // You might want to show an error message to the user here
     });
 
+    setQuantities({});
     // Fix 1: Reset states and enable buttons after 5 seconds
     setTimeout(() => {
-      setQuantities({});
       setOrderPlaced(false);
       setPrintData(null);
       setIsProcessing(false);
