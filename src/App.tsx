@@ -18,13 +18,14 @@ import RunningCoupons from "./components/RunningCoupons";
 import CounterAnalytics from "./components/CounterAnalytics";
 import Signup from "./pages/Signup";
 import Login from "./pages/Login";
+import { Toaster } from 'react-hot-toast';
 import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
   return (
     <BrowserRouter>
       {/* Header Navigation */}
-
+<Toaster position="top-center" toastOptions={{ duration: 3000 }} />
       {/* Routes */}
       <main className="container mx-auto px-4 py-6">
         <Routes>

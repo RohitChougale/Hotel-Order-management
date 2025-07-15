@@ -42,6 +42,7 @@ export default function CounterAdmin() {
   const [settings, setSettings] = useState({
     isDarkMode: false,
     numberOfPrints: 1,
+    saprateTracking:false
   });
   // Ref to prevent the save effect from running on initial component mount
   const isInitialMount = useRef(true);
@@ -66,24 +67,35 @@ export default function CounterAdmin() {
   }, [currentUser, showModal]);
 
   // Function to open the settings modal and fetch existing settings
-  const openSettingsModal = async () => {
-    if (!currentUser) return;
-    const settingsRef = doc(
-      db,
-      "users",
-      currentUser.uid,
-      "settings",
-      "userSettings"
-    );
-    const docSnap = await getDoc(settingsRef);
+  // Function to open the settings modal and fetch existing settings
+const openSettingsModal = async () => {
+  if (!currentUser) return;
+  
+  // Set initial mount to true BEFORE fetching to prevent auto-save
+  isInitialMount.current = true;
+  
+  const settingsRef = doc(
+    db,
+    "users",
+    currentUser.uid,
+    "settings",
+    "userSettings"
+  );
+  const docSnap = await getDoc(settingsRef);
 
-    if (docSnap.exists()) {
-      setSettings(docSnap.data() as any);
-    }
-    // Set initial mount to true here so the useEffect doesn't save on first open
-    isInitialMount.current = true;
-    setShowSettingsModal(true);
-  };
+  if (docSnap.exists()) {
+    setSettings(docSnap.data() as any);
+  } else {
+    // Set default values if no settings exist
+    setSettings({
+      isDarkMode: false,
+      numberOfPrints: 1,
+      saprateTracking: false
+    });
+  }
+  
+  setShowSettingsModal(true);
+};
 
   // useEffect to automatically save settings when they change
   useEffect(() => {
@@ -270,6 +282,29 @@ export default function CounterAdmin() {
                     checked={settings.isDarkMode}
                     onChange={(e) =>
                       handleSettingsChange("isDarkMode", e.target.checked)
+                    }
+                  />
+                  <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-600"></div>
+                </label>
+              </div>
+              <div className="flex items-center justify-between">
+                <label
+                  htmlFor="darkModeToggle"
+                  className="text-gray-700 font-medium"
+                >
+                  Running Coupons Order-Type wise
+                </label>
+                <label
+                  htmlFor="saprateTracking"
+                  className="relative inline-flex items-center cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    id="saprateTracking"
+                    className="sr-only peer"
+                    checked={settings.saprateTracking}
+                    onChange={(e) =>
+                      handleSettingsChange("saprateTracking", e.target.checked)
                     }
                   />
                   <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-600"></div>
