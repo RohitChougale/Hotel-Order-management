@@ -24,11 +24,11 @@ export default function Login() {
           const data = docSnap.data();
           setAppVersion(data.version);
         } else {
-          setAppVersion("1.1.1");
+          setAppVersion("1.1.2");
         }
       } catch (error) {
         console.error("Error fetching app version:", error);
-        setAppVersion("1.1.1");
+        setAppVersion("1.1.2");
       }
     };
 

@@ -24,6 +24,16 @@ declare global {
     };
   }
 }
+const fetchSeparateTrackingSetting = async (userId :any) => {
+  try {
+    const settingsRef = doc(db, "users", userId, "settings", "userSettings");
+    const settingsSnap = await getDoc(settingsRef);
+    return settingsSnap.exists() ? settingsSnap.data()?.saprateTracking || false : false;
+  } catch (error) {
+    console.error("Error fetching separate tracking setting:", error);
+    return false;
+  }
+};
 
 export default function CounterOrder() {
   type CounterItem = {
@@ -48,6 +58,7 @@ export default function CounterOrder() {
   const [filteredItems, setFilteredItems] = useState<CounterItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<"Cash" | "Online">("Cash");
   const [numberOfPrints, setNumberOfPrints] = useState(1);
+  const [separateTracking, setSeparateTracking] = useState(false);
 
   // New states for fixing the bugs
   const [isProcessing, setIsProcessing] = useState(false);
@@ -83,6 +94,8 @@ export default function CounterOrder() {
 
   useEffect(() => {
     const fetchItems = async () => {
+      const separateTrackingEnabled = await fetchSeparateTrackingSetting(currentUser!.uid);
+    setSeparateTracking(separateTrackingEnabled);
       const snapshot = await getDocs(
         collection(db, "users", currentUser!.uid, "counterItems")
       );
@@ -144,7 +157,7 @@ export default function CounterOrder() {
         handleOrder("Parcel");
       } else if (event.key.toLowerCase() === "s") {
         event.preventDefault();
-        handleOrder("Swiggy/Zomato");
+        handleOrder("Swiggy-Zomato");
       }
     };
     window.addEventListener("keydown", handleKeyPress);
@@ -225,16 +238,19 @@ export default function CounterOrder() {
 
   const getTodayDate = () => dayjs().format("YYYY-MM-DD");
 
-  const getNextCouponNumber = async () => {
+  const getNextCouponNumber = async (orderType:any) => {
+  const today = getTodayDate();
+  
+  if (separateTracking) {
+    // Separate tracking for each order type
     const metaRef = doc(
       db,
       "users",
       currentUser!.uid,
       "counterMeta",
-      "couponTracker"
+      `couponTracker_${orderType}`
     );
     const metaSnap = await getDoc(metaRef);
-    const today = getTodayDate();
     let newCouponNumber = 1;
 
     if (metaSnap.exists()) {
@@ -249,9 +265,34 @@ export default function CounterOrder() {
       lastResetDate: today,
     });
     return newCouponNumber;
-  };
+  } else {
+    // Original unified tracking
+    const metaRef = doc(
+      db,
+      "users",
+      currentUser!.uid,
+      "counterMeta",
+      "couponTracker"
+    );
+    const metaSnap = await getDoc(metaRef);
+    let newCouponNumber = 1;
 
-  const handleOrder = async (orderType: "Table" | "Parcel" | "Swiggy/Zomato") => {
+    if (metaSnap.exists()) {
+      const data = metaSnap.data();
+      if (data.lastResetDate === today) {
+        newCouponNumber = data.lastCouponNumber + 1;
+        if (newCouponNumber > 100) newCouponNumber = 1;
+      }
+    }
+    await setDoc(metaRef, {
+      lastCouponNumber: newCouponNumber,
+      lastResetDate: today,
+    });
+    return newCouponNumber;
+  }
+};
+
+  const handleOrder = async (orderType: "Table" | "Parcel" | "Swiggy-Zomato") => {
     const { orderItems, subTotal } = currentOrderDetails;
     if (orderItems.length === 0) {
       alert("Please add at least one item.");
@@ -265,8 +306,10 @@ export default function CounterOrder() {
     setProcessingOrderType(orderType);
 
     const timestamp = Timestamp.now();
-    const couponNumber = await getNextCouponNumber();
-    const couponId = `${String(couponNumber).padStart(2, "0")}`;
+    const couponNumber = await getNextCouponNumber(orderType);
+    const couponId = separateTracking 
+    ? `${orderType.charAt(0)}${String(couponNumber).padStart(2, "0")}`
+    : `${String(couponNumber).padStart(2, "0")}`;
 
     const orderData = {
       items: orderItems.map(({ id, ...rest }) => rest),
@@ -579,19 +622,19 @@ export default function CounterOrder() {
             : "🛍️ Parcel & Print"}
         </button>
         <button
-          onClick={() => handleOrder("Swiggy/Zomato")}
+          onClick={() => handleOrder("Swiggy-Zomato")}
           disabled={isProcessing}
           className={`px-8 py-3 sm:px-10 sm:py-4 rounded-lg shadow text-lg sm:text-xl font-semibold transition ${
             isProcessing
-              ? processingOrderType === "Swiggy/Zomato"
+              ? processingOrderType === "Swiggy-Zomato"
                 ? "bg-purple-500 text-white cursor-not-allowed"
                 : "bg-gray-400 text-gray-600 cursor-not-allowed"
               : "bg-purple-600 text-white hover:bg-purple-700"
           }`}
         >
-          {isProcessing && processingOrderType === "Swiggy/Zomato"
+          {isProcessing && processingOrderType === "Swiggy-Zomato"
             ? "Processing..."
-            : "🛵 Swiggy/Zomato & Print"}
+            : "🛵 Swiggy-Zomato & Print"}
         </button>
       </div>
 
