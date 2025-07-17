@@ -14,19 +14,18 @@ import dayjs from "dayjs";
 import { getAuth } from "firebase/auth";
 import BackButton from "../elements/BackButton";
 import toast from "react-hot-toast";
+
 type OrderType = 'Table' | 'Parcel' | 'Swiggy-Zomato';
 interface Order {
   orderType: OrderType;
-  id:any;
-  couponId:any;
-  subTotal:any;
-  items:any;
-  timestamp:any;
-
-  // add other fields if needed
+  id: any;
+  couponId: any;
+  subTotal: any;
+  items: any;
+  timestamp: any;
 }
 
-const fetchSeparateTrackingSetting = async (userId:any) => {
+const fetchSeparateTrackingSetting = async (userId: any) => {
   try {
     const settingsRef = doc(db, "users", userId, "settings", "userSettings");
     const settingsSnap = await getDoc(settingsRef);
@@ -43,39 +42,42 @@ export default function RunningCoupons() {
   const [topItems, setTopItems] = useState<string[]>([]);
   const [showItemSelector, setShowItemSelector] = useState(false);
   const [allItemNames, setAllItemNames] = useState<string[]>([]);
-  const formatDate = (date: Date) => dayjs(date).format("YYYY-MM-DD");
   const [separateTracking, setSeparateTracking] = useState(false);
+  const [highlightedCoupon, setHighlightedCoupon] = useState<string | null>(null);
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
+
+  const formatDate = (date: Date) => dayjs(date).format("YYYY-MM-DD");
 
   const auth = getAuth();
   const currentUser = auth.currentUser;
-  useEffect(() => {
-  console.log("Separate tracking state:", separateTracking);
-  console.log("Orders:", orders);
-}, [separateTracking, orders]);
 
   useEffect(() => {
-  const fetchTrackingSetting = async () => {
-    if (!currentUser) return;
-    const separateTrackingEnabled = await fetchSeparateTrackingSetting(currentUser.uid);
-    setSeparateTracking(separateTrackingEnabled);
-  };
-  fetchTrackingSetting();
-}, [currentUser]);
+    console.log("Separate tracking state:", separateTracking);
+    console.log("Orders:", orders);
+  }, [separateTracking, orders]);
 
-const groupOrdersByType = (orders:Order[]) => {
-  const grouped: Record<OrderType, Order[]> = {
-    Table:[],
-    Parcel: [],
-    'Swiggy-Zomato': []
-  };
-  
-  orders.forEach((order) => {
-   
+  useEffect(() => {
+    const fetchTrackingSetting = async () => {
+      if (!currentUser) return;
+      const separateTrackingEnabled = await fetchSeparateTrackingSetting(currentUser.uid);
+      setSeparateTracking(separateTrackingEnabled);
+    };
+    fetchTrackingSetting();
+  }, [currentUser]);
+
+  const groupOrdersByType = (orders: Order[]) => {
+    const grouped: Record<OrderType, Order[]> = {
+      Table: [],
+      Parcel: [],
+      'Swiggy-Zomato': []
+    };
+
+    orders.forEach((order) => {
       grouped[order.orderType].push(order);
-  });
-  
-  return grouped;
-};
+    });
+
+    return grouped;
+  };
 
   useEffect(() => {
     if (!currentUser) return;
@@ -109,17 +111,58 @@ const groupOrdersByType = (orders:Order[]) => {
           id: doc.id,
           ...(doc.data() as any),
         }));
-        if (orders.length && list.length > orders.length) {
-        toast.success("New coupon added");
-      }
+
+        // Check for new coupons (only after first load)
+        if (!isFirstLoad && orders.length && list.length > orders.length) {
+          // Find new coupons by comparing with existing orders
+          const existingIds = new Set(orders.map(order => order.id));
+          const newCoupons = list.filter(order => !existingIds.has(order.id));
+          
+          if (newCoupons.length > 0) {
+            // Show toast for new coupon(s)
+            newCoupons.forEach(coupon => {
+              toast.success(`New coupon added: COUPON-${coupon.couponId}`, {
+                duration: 4000,
+                style: {
+                  background: '#10B981',
+                  color: 'white',
+                  fontWeight: 'bold'
+                },
+                icon: '🎫'
+              });
+            });
+
+            // Highlight the most recent new coupon
+            if (newCoupons.length > 0) {
+              const sortedNewCoupons = newCoupons.sort((a, b) => {
+                const timeA = a.timestamp?.toDate?.()?.getTime?.() || 0;
+                const timeB = b.timestamp?.toDate?.()?.getTime?.() || 0;
+                return timeB - timeA;
+              });
+              
+              setHighlightedCoupon(sortedNewCoupons[0].id);
+              
+              // Remove highlight after 5 seconds
+              setTimeout(() => {
+                setHighlightedCoupon(null);
+              }, 5000);
+            }
+          }
+        }
 
         const sortedList = list.sort((a, b) => {
           const timeA = a.timestamp?.toDate?.()?.getTime?.() || 0;
           const timeB = b.timestamp?.toDate?.()?.getTime?.() || 0;
           return timeB - timeA;
         });
+
         setOrders(sortedList);
         setLoading(false);
+        
+        // Mark first load as complete
+        if (isFirstLoad) {
+          setIsFirstLoad(false);
+        }
       },
       (error) => {
         console.error("Error fetching orders:", error);
@@ -128,70 +171,80 @@ const groupOrdersByType = (orders:Order[]) => {
     );
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser, orders.length, isFirstLoad]);
 
   useEffect(() => {
-  if (!currentUser) return;
+    if (!currentUser) return;
 
-  const fetchCounterItems = async () => {
-    try {
-      const snapshot = await getDocs(collection(db, "users", currentUser.uid, "counterItems"));
-      const names: string[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.name) {
-          names.push(data.name);
-        }
-      });
-      setAllItemNames(names);
-      console.log("Fetched counter item names:", names);
-    } catch (error) {
-      console.error("Failed to load counter items:", error);
+    const fetchCounterItems = async () => {
+      try {
+        const snapshot = await getDocs(collection(db, "users", currentUser.uid, "counterItems"));
+        const names: string[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          if (data.name) {
+            names.push(data.name);
+          }
+        });
+        setAllItemNames(names);
+        console.log("Fetched counter item names:", names);
+      } catch (error) {
+        console.error("Failed to load counter items:", error);
+      }
+    };
+
+    fetchCounterItems();
+  }, [currentUser]);
+
+  // Function to get highlight class for coupon
+  const getCouponHighlightClass = (orderId: string) => {
+    if (highlightedCoupon === orderId) {
+      return separateTracking 
+        ? "bg-gradient-to-r from-green-100 to-green-200 border-2 border-green-400 shadow-lg transform scale-105 transition-all duration-500"
+        : "bg-gradient-to-r from-green-100 to-green-200 border-2 border-green-400 shadow-lg transform scale-105 transition-all duration-500";
     }
+    return separateTracking ? "bg-gray-50" : "bg-white shadow-md";
   };
-
-  fetchCounterItems();
-}, [currentUser]);
 
   // New function to handle removing individual items from coupon
   const handleRemoveItem = async (orderId: string, itemIndex: number) => {
     try {
       const orderRef = doc(db, "users", currentUser!.uid, "counterOrder", orderId);
       const orderDoc = await getDoc(orderRef);
-      
+
       if (orderDoc.exists()) {
         const orderData = orderDoc.data();
         const updatedItems = orderData.items.filter((_: any, index: number) => index !== itemIndex);
-        
+
         // If only one item remains, don't allow deletion
         if (updatedItems.length === 0) {
-  
-           toast.error("Cannot remove the last item. Use 'Close Coupon' to remove the entire order");
+          toast.error("Cannot remove the last item. Use 'Close Coupon' to remove the entire order");
           return;
         }
-        
+
         // Calculate new subtotal
         const newSubTotal = updatedItems.reduce((sum: number, item: any) => sum + item.total, 0);
-        
+
         // Update the order with new items and subtotal
         await updateDoc(orderRef, {
           items: updatedItems,
           subTotal: newSubTotal
         });
+
+        toast.success("Item removed successfully");
       }
     } catch (error) {
       console.error("Error removing item:", error);
-       toast.error("Failed to remove item. Please try again.");
+      toast.error("Failed to remove item. Please try again.");
     }
   };
 
-  const handleCloseCoupon = async (id: string,couponId:any) => {
+  const handleCloseCoupon = async (id: string, couponId: any) => {
     try {
       await deleteDoc(doc(db, "users", currentUser!.uid, "counterOrder", id));
-       toast.success(`Coupon-${couponId} closed successfully`);
+      toast.success(`Coupon-${couponId} closed successfully`);
     } catch (error) {
       console.error("Error closing coupon:", error);
-
       toast.error("Failed to close coupon. Please try again.");
     }
   };
@@ -211,7 +264,7 @@ const groupOrdersByType = (orders:Order[]) => {
       const printData = {
         type: 'print',
         payload: {
-          hotelName:'Reprinted',
+          hotelName: 'Reprinted',
           couponId: order.couponId,
           orderType: order.orderType,
           date: dayjs(order.timestamp?.toDate?.()).format("DD-MM-YYYY HH:mm"),
@@ -241,7 +294,7 @@ const groupOrdersByType = (orders:Order[]) => {
         }, 250);
       };
     } else {
-       toast.error("Pop-up blocked. Please allow pop-ups for this site to print bills");
+      toast.error("Pop-up blocked. Please allow pop-ups for this site to print bills");
     }
   };
 
@@ -347,25 +400,10 @@ const groupOrdersByType = (orders:Order[]) => {
         <div className="text-center mb-6">
           <h3 className="text-lg font-semibold text-gray-700">Top Items Summary</h3>
           {separateTracking ? (
-            // Display top items for each order type
             <div className="space-y-4 mt-2">
-              {/* {Object.entries(topItemSummary as Record<OrderType, { name: string; quantity: number }[]>).map(([orderType, summary]) => (
-                <div key={orderType} className="bg-white p-3 rounded-lg shadow">
-                  <h4 className="text-sm font-medium text-gray-600 mb-2">
-                    {orderType === 'Swiggy-Zomato' ? '🛵 Delivery' : orderType === 'Table' ? '🍽️ Table' : '🛍️ Parcel'}
-                  </h4>
-                  <div className="flex flex-wrap justify-center gap-2">
-                    {summary.map((item) => (
-                      <div key={`${orderType}-${item.name}`} className="bg-gray-100 px-3 py-1 rounded-md text-xs text-gray-800">
-                        {item.name}: <span className="font-bold">{item.quantity}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))} */}
+              {/* Commented out separate tracking display */}
             </div>
           ) : (
-            // Original unified display
             <div className="flex flex-wrap justify-center gap-4 mt-2">
               {(topItemSummary as { name: string; quantity: number }[]).map((item) => (
                 <div key={item.name} className="bg-white px-4 py-2 rounded-lg shadow border text-sm text-gray-800">
@@ -384,45 +422,96 @@ const groupOrdersByType = (orders:Order[]) => {
       )}
 
       {orders.length === 0 ? (
-  <p className="text-center text-gray-600">No running coupons.</p>
-) : separateTracking ? (
-  // Separate columns for each order type
-  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-7xl mx-auto">
-    {Object.entries(groupOrdersByType(orders)).map(([orderType, typeOrders]) => (
-      <div key={orderType} className="bg-white rounded-lg shadow-lg p-4">
-        <h2 className="text-xl font-bold text-center mb-4 text-orange-700">
-          {orderType === 'Swiggy-Zomato' ? '🛵 Delivery' : orderType === 'Table' ? '🍽️ Table' : '🛍️ Parcel'}
-          <span className="block text-sm text-gray-600">({typeOrders.length} orders)</span>
-        </h2>
-         {topItems.length > 0 && (
-      <div className="mb-4">
-        <h3 className="text-xs font-semibold text-gray-500 mb-1 text-center">Top Items</h3>
-        <div className="flex flex-wrap gap-2 justify-center">
-          {(topItemSummary as Record<OrderType, { name: string; quantity: number }[]>)[orderType as OrderType]?.map((item) => (
-            <div key={`${orderType}-${item.name}`} className="bg-orange-50 border px-2 py-1 rounded-md text-xs">
-              {item.name}: <span className="font-bold">{item.quantity}</span>
+        <p className="text-center text-gray-600">No running coupons.</p>
+      ) : separateTracking ? (
+        // Separate columns for each order type
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-7xl mx-auto">
+          {Object.entries(groupOrdersByType(orders)).map(([orderType, typeOrders]) => (
+            <div key={orderType} className="bg-white rounded-lg shadow-lg p-4">
+              <h2 className="text-xl font-bold text-center mb-4 text-orange-700">
+                {orderType === 'Swiggy-Zomato' ? '🛵 Delivery' : orderType === 'Table' ? '🍽️ Table' : '🛍️ Parcel'}
+                <span className="block text-sm text-gray-600">({typeOrders.length} orders)</span>
+              </h2>
+              {topItems.length > 0 && (
+                <div className="mb-4">
+                  <h3 className="text-xs font-semibold text-gray-500 mb-1 text-center">Top Items</h3>
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {(topItemSummary as Record<OrderType, { name: string; quantity: number }[]>)[orderType as OrderType]?.map((item) => (
+                      <div key={`${orderType}-${item.name}`} className="bg-orange-50 border px-2 py-1 rounded-md text-xs">
+                        {item.name}: <span className="font-bold">{item.quantity}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="space-y-3">
+                {typeOrders.map((order) => (
+                  <div key={order.id} className={`${getCouponHighlightClass(order.id)} rounded-lg p-3 border`}>
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="font-semibold text-orange-800">
+                        COUPON- {order.couponId}
+                        {highlightedCoupon === order.id && (
+                          <span className="ml-2 text-green-600 animate-pulse">✨ NEW</span>
+                        )}
+                      </h3>
+                      <span className="text-xs text-gray-500">
+                        {dayjs(order.timestamp?.toDate?.()).format("HH:mm")}
+                      </span>
+                    </div>
+                    <ul className="text-xs text-gray-800 mb-2">
+                      {order.items.map((item: any, idx: number) => (
+                        <li key={idx} className="flex justify-between items-center py-1">
+                          <span>{item.name} × {item.quantity} = ₹{item.total}</span>
+                          {order.items.length > 1 && (
+                            <button
+                              onClick={() => handleRemoveItem(order.id, idx)}
+                              className="text-red-500 hover:text-red-700 text-xs ml-2"
+                              title="Remove item"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="flex justify-between items-center">
+                      <p className="font-bold text-sm text-gray-700">₹{order.subTotal}</p>
+                      <div className="flex gap-1">
+                        <button onClick={() => handlePrintBill(order)} className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs">Print</button>
+                        <button onClick={() => handleCloseCoupon(order.id, order.couponId)} className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 text-xs">Close</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
-      </div>
-    )}
-        <div className="space-y-3">
-          {typeOrders.map((order) => (
-            <div key={order.id} className="bg-gray-50 rounded-lg p-3 border">
+      ) : (
+        // Original unified view
+        <div className="grid gap-4 max-w-4xl mx-auto">
+          {orders.map((order) => (
+            <div key={order.id} className={`${getCouponHighlightClass(order.id)} rounded-lg p-4 border`}>
               <div className="flex justify-between items-center mb-2">
-                <h3 className="font-semibold text-orange-800">COUPON- {order.couponId}</h3>
-                <span className="text-xs text-gray-500">
-                  {dayjs(order.timestamp?.toDate?.()).format("HH:mm")}
+                <h2 className="text-xl font-semibold text-orange-800">
+                  COUPON- {order.couponId}
+                  {highlightedCoupon === order.id && (
+                    <span className="ml-2 text-green-600 animate-pulse font-bold">✨ NEW</span>
+                  )}
+                </h2>
+                <span className="text-sm text-gray-500">
+                  {dayjs(order.timestamp?.toDate?.()).format("DD-MM-YYYY HH:mm")}
                 </span>
               </div>
-              <ul className="text-xs text-gray-800 mb-2">
+              <div className="mb-2 text-sm text-gray-800">Order Type: {order.orderType}</div>
+              <ul className="text-sm text-gray-800 mb-2">
                 {order.items.map((item: any, idx: number) => (
                   <li key={idx} className="flex justify-between items-center py-1">
                     <span>{item.name} × {item.quantity} = ₹{item.total}</span>
                     {order.items.length > 1 && (
                       <button
                         onClick={() => handleRemoveItem(order.id, idx)}
-                        className="text-red-500 hover:text-red-700 text-xs ml-2"
+                        className="text-red-500 hover:text-red-700 text-sm ml-2"
                         title="Remove item"
                       >
                         ✕
@@ -432,57 +521,16 @@ const groupOrdersByType = (orders:Order[]) => {
                 ))}
               </ul>
               <div className="flex justify-between items-center">
-                <p className="font-bold text-sm text-gray-700">₹{order.subTotal}</p>
-                <div className="flex gap-1">
-                  <button onClick={() => handlePrintBill(order)} className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 text-xs">Print</button>
-                  <button onClick={() => handleCloseCoupon(order.id, order.couponId)} className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 text-xs">Close</button>
+                <p className="font-bold text-lg text-gray-700">Total: ₹{order.subTotal}</p>
+                <div className="flex gap-2">
+                  <button onClick={() => handlePrintBill(order)} className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 text-sm font-semibold">RePrint Bill</button>
+                  <button onClick={() => handleCloseCoupon(order.id, order.couponId)} className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 text-sm font-semibold">Close Coupon</button>
                 </div>
               </div>
             </div>
           ))}
         </div>
-      </div>
-    ))}
-  </div>
-) : (
-  // Original unified view
-  <div className="grid gap-4 max-w-4xl mx-auto">
-    {orders.map((order) => (
-      <div key={order.id} className="bg-white shadow-md rounded-lg p-4 border">
-        <div className="flex justify-between items-center mb-2">
-          <h2 className="text-xl font-semibold text-orange-800">COUPON- {order.couponId}</h2>
-          <span className="text-sm text-gray-500">
-            {dayjs(order.timestamp?.toDate?.()).format("DD-MM-YYYY HH:mm")}
-          </span>
-        </div>
-        <div className="mb-2 text-sm text-gray-800">Order Type: {order.orderType}</div>
-        <ul className="text-sm text-gray-800 mb-2">
-          {order.items.map((item: any, idx: number) => (
-            <li key={idx} className="flex justify-between items-center py-1">
-              <span>{item.name} × {item.quantity} = ₹{item.total}</span>
-              {order.items.length > 1 && (
-                <button
-                  onClick={() => handleRemoveItem(order.id, idx)}
-                  className="text-red-500 hover:text-red-700 text-sm ml-2"
-                  title="Remove item"
-                >
-                  ✕
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
-        <div className="flex justify-between items-center">
-          <p className="font-bold text-lg text-gray-700">Total: ₹{order.subTotal}</p>
-          <div className="flex gap-2">
-            <button onClick={() => handlePrintBill(order)} className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 text-sm font-semibold">RePrint Bill</button>
-            <button onClick={() => handleCloseCoupon(order.id,order.couponId)} className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 text-sm font-semibold">Close Coupon</button>
-          </div>
-        </div>
-      </div>
-    ))}
-  </div>
-)}
+      )}
 
       {showItemSelector && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
@@ -524,8 +572,7 @@ const groupOrdersByType = (orders:Order[]) => {
                     saveTopItemsToFirestore();
                     setShowItemSelector(false);
                   } else {
-                    
-                     toast.error("Please select 3 items");
+                    toast.error("Please select 3 items");
                   }
                 }}
                 className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 text-sm"
