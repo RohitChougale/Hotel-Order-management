@@ -20,7 +20,7 @@ import Signup from "./pages/Signup";
 import Login from "./pages/Login";
 import { Toaster } from 'react-hot-toast';
 import ProtectedRoute from "./components/ProtectedRoute";
-import CounterDisplay from "./components/counterDisplay";
+import CounterDisplay from "./components/CounterDisplay";
 
 function App() {
   return (
