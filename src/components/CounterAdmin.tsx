@@ -20,7 +20,8 @@ export default function CounterAdmin() {
   const currentUser = auth.currentUser;
   const [errorMsg, setErrorMsg] = useState("");
   const [highestCode, setHighestCode] = useState("");
-
+  const [items, setItems] = useState<any[]>([]);
+  const [loadingItems, setLoadingItems] = useState(false);
   // States for existing modals
   const [showModal, setShowModal] = useState(false);
   const [item, setItem] = useState({
@@ -42,8 +43,10 @@ export default function CounterAdmin() {
   const [settings, setSettings] = useState({
     isDarkMode: false,
     numberOfPrints: 1,
-    saprateTracking:false
+    saprateTracking: false,
   });
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   // Ref to prevent the save effect from running on initial component mount
   const isInitialMount = useRef(true);
   useEffect(() => {
@@ -68,47 +71,13 @@ export default function CounterAdmin() {
 
   // Function to open the settings modal and fetch existing settings
   // Function to open the settings modal and fetch existing settings
-const openSettingsModal = async () => {
-  if (!currentUser) return;
-  
-  // Set initial mount to true BEFORE fetching to prevent auto-save
-  isInitialMount.current = true;
-  
-  const settingsRef = doc(
-    db,
-    "users",
-    currentUser.uid,
-    "settings",
-    "userSettings"
-  );
-  const docSnap = await getDoc(settingsRef);
+  const openSettingsModal = async () => {
+    if (!currentUser) return;
 
-  if (docSnap.exists()) {
-    setSettings(docSnap.data() as any);
-  } else {
-    // Set default values if no settings exist
-    setSettings({
-      isDarkMode: false,
-      numberOfPrints: 1,
-      saprateTracking: false
-    });
-  }
-  
-  setShowSettingsModal(true);
-};
+    // Reset the loaded flag
+    setSettingsLoaded(false);
 
-  // useEffect to automatically save settings when they change
-  useEffect(() => {
-    // Guard clause: If it's the initial render/fetch, don't save.
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
-
-    // Debounce function to prevent rapid writes, especially for the number input
-    const handler = setTimeout(async () => {
-      if (!currentUser) return;
-      console.log("Saving settings:", settings);
+    try {
       const settingsRef = doc(
         db,
         "users",
@@ -116,18 +85,118 @@ const openSettingsModal = async () => {
         "settings",
         "userSettings"
       );
-      await setDoc(settingsRef, settings);
+      const docSnap = await getDoc(settingsRef);
+
+      if (docSnap.exists()) {
+        const fetchedSettings = docSnap.data();
+        setSettings({
+          isDarkMode: fetchedSettings.isDarkMode ?? false,
+          numberOfPrints: fetchedSettings.numberOfPrints ?? 1,
+          saprateTracking: fetchedSettings.saprateTracking ?? false,
+        });
+      } else {
+        // Set default values if no settings exist
+        setSettings({
+          isDarkMode: false,
+          numberOfPrints: 1,
+          saprateTracking: false,
+        });
+      }
+      const itemsSnapshot = await getDocs(
+        collection(db, "users", currentUser.uid, "counterItems")
+      );
+      const itemList = itemsSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setItems(itemList);
+    } catch (error) {
+      console.error("Error fetching settings:", error);
+      // Set default values on error
+      setSettings({
+        isDarkMode: false,
+        numberOfPrints: 1,
+        saprateTracking: false,
+      });
+    }
+
+    // Mark settings as loaded AFTER setting the state
+    setSettingsLoaded(true);
+    setShowSettingsModal(true);
+    setLoadingItems(false);
+  };
+  const handleToggleAvailability = async (
+    itemId: string,
+    currentValue: boolean | undefined
+  ) => {
+    try {
+      const itemRef = doc(
+        db,
+        "users",
+        currentUser!.uid,
+        "counterItems",
+        itemId
+      );
+      await setDoc(itemRef, { show: !currentValue }, { merge: true });
+
+      setItems((prevItems) =>
+        prevItems.map((item) =>
+          item.id === itemId ? { ...item, show: !currentValue } : item
+        )
+      );
+    } catch (error) {
+      console.error("Error updating item availability:", error);
+    }
+  };
+  // useEffect to automatically save settings when they change
+  useEffect(() => {
+    // Don't save if settings haven't been loaded yet or user is not authenticated
+    if (!settingsLoaded || !currentUser) return;
+
+    // Clear any existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // Debounce function to prevent rapid writes
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        console.log("Saving settings:", settings);
+        const settingsRef = doc(
+          db,
+          "users",
+          currentUser.uid,
+          "settings",
+          "userSettings"
+        );
+        await setDoc(settingsRef, settings);
+        console.log("Settings saved successfully");
+      } catch (error) {
+        console.error("Error saving settings:", error);
+      }
     }, 500); // Save 500ms after the last change
 
-    // Cleanup function to clear the timeout if settings change again quickly
+    // Cleanup function
     return () => {
-      clearTimeout(handler);
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
     };
-  }, [settings, currentUser]);
-
+  }, [settings, settingsLoaded, currentUser]);
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
   // Handler for settings changes
   const handleSettingsChange = (field: string, value: any) => {
     setSettings((prev) => ({ ...prev, [field]: value }));
+  };
+  const closeSettingsModal = () => {
+    setShowSettingsModal(false);
+    setSettingsLoaded(false);
   };
   // --- End of New Code ---
 
@@ -158,6 +227,7 @@ const openSettingsModal = async () => {
       await addDoc(collection(db, "users", currentUser!.uid, "counterItems"), {
         ...item,
         price: parseFloat(item.price),
+        show: true
       });
 
       alert("Item added successfully!");
@@ -208,7 +278,7 @@ const openSettingsModal = async () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-100 via-orange-50 to-orange-200 p-6 flex flex-col items-center justify-center">
-      <BackButton/>
+      <BackButton />
       <h1 className="text-5xl font-extrabold text-orange-800 mb-10 tracking-wide text-center">
         🍽️ Counter Admin Panel
       </h1>
@@ -249,107 +319,120 @@ const openSettingsModal = async () => {
       </div>
 
       {/* --- Start of New Code: Settings Modal --- */}
-      {showSettingsModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md animate-fade-in">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-700">Settings</h2>
-              <button
-                onClick={() => setShowSettingsModal(false)}
-                className="text-gray-400 hover:text-gray-600 text-2xl"
-              >
-                ×
-              </button>
-            </div>
+     {showSettingsModal && (
+  <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg animate-fade-in">
+      
+      {/* Header */}
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold text-gray-700">Settings</h2>
+        <button
+          onClick={closeSettingsModal}
+          className="text-gray-400 hover:text-gray-600 text-2xl"
+        >
+          ×
+        </button>
+      </div>
 
-            <div className="space-y-6">
-              {/* Dark Mode Toggle */}
-              <div className="flex items-center justify-between">
-                <label
-                  htmlFor="darkModeToggle"
-                  className="text-gray-700 font-medium"
-                >
-                  Dark Mode
-                </label>
-                <label
-                  htmlFor="darkModeToggle"
-                  className="relative inline-flex items-center cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    id="darkModeToggle"
-                    className="sr-only peer"
-                    checked={settings.isDarkMode}
-                    onChange={(e) =>
-                      handleSettingsChange("isDarkMode", e.target.checked)
-                    }
-                  />
-                  <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-600"></div>
-                </label>
-              </div>
-              <div className="flex items-center justify-between">
-                <label
-                  htmlFor="darkModeToggle"
-                  className="text-gray-700 font-medium"
-                >
-                  Running Coupons Order-Type wise
-                </label>
-                <label
-                  htmlFor="saprateTracking"
-                  className="relative inline-flex items-center cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    id="saprateTracking"
-                    className="sr-only peer"
-                    checked={settings.saprateTracking}
-                    onChange={(e) =>
-                      handleSettingsChange("saprateTracking", e.target.checked)
-                    }
-                  />
-                  <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-600"></div>
-                </label>
-              </div>
-
-              {/* Number of Prints */}
-              <div>
-                <label
-                  htmlFor="numberOfPrints"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  Number of Prints
-                </label>
-                <input
-                  type="number"
-                  id="numberOfPrints"
-                  name="numberOfPrints"
-                  min="1"
-                  value={settings.numberOfPrints}
-                  onChange={(e) =>
-                    handleSettingsChange(
-                      "numberOfPrints",
-                      parseInt(e.target.value) || 1
-                    )
-                  }
-                  className="w-full border border-gray-300 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Number of copies to print for each order.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex justify-end mt-8">
-              <button
-                onClick={() => setShowSettingsModal(false)}
-                className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-semibold transition-all"
-              >
-                Close
-              </button>
-            </div>
-          </div>
+      <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-2">
+        
+        {/* Dark Mode */}
+        <div className="flex items-center justify-between">
+          <span className="text-gray-700 font-medium">Dark Mode</span>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              className="sr-only peer"
+              checked={settings.isDarkMode}
+              onChange={(e) => handleSettingsChange("isDarkMode", e.target.checked)}
+            />
+            <div className="w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-gray-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5"></div>
+          </label>
         </div>
-      )}
+
+        {/* Running Coupons Order-Type wise */}
+        <div className="flex items-center justify-between">
+          <span className="text-gray-700 font-medium">Running Coupons Order-Type wise</span>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              className="sr-only peer"
+              checked={settings.saprateTracking}
+              onChange={(e) => handleSettingsChange("saprateTracking", e.target.checked)}
+            />
+            <div className="w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-gray-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5"></div>
+          </label>
+        </div>
+
+        {/* Number of Prints */}
+        <div>
+          <label htmlFor="numberOfPrints" className="block text-sm font-medium text-gray-700 mb-1">
+            Number of Prints
+          </label>
+          <input
+            type="number"
+            id="numberOfPrints"
+            min="1"
+            value={settings.numberOfPrints}
+            onChange={(e) =>
+              handleSettingsChange("numberOfPrints", parseInt(e.target.value) || 1)
+            }
+            className="w-full border border-gray-300 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400"
+          />
+          <p className="text-xs text-gray-500 mt-1">Number of copies to print for each order.</p>
+        </div>
+
+        {/* ✅ Manage Item Availability */}
+        <div className="border-t pt-3">
+          <h3 className="text-md font-semibold text-gray-800 mb-2">
+            Manage Item Availability
+          </h3>
+          {loadingItems ? (
+            <p className="text-gray-500 text-sm">Loading items...</p>
+          ) : (
+            <div className="max-h-40 overflow-y-auto rounded-lg border border-gray-200 p-2 bg-gray-50">
+              {items.length === 0 ? (
+                <p className="text-gray-500 text-sm text-center py-4">
+                  No items found.
+                </p>
+              ) : (
+                <ul className="divide-y divide-gray-200">
+                  {items.map((item) => (
+                    <li key={item.id} className="flex items-center justify-between py-2">
+                      <span className="text-sm font-medium text-gray-700 truncate w-2/3">
+                        {item.name}
+                      </span>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={item.show !== false} // Default true if undefined
+                          onChange={() => handleToggleAvailability(item.id, item.show)}
+                        />
+                        <div className="w-9 h-5 bg-gray-200 rounded-full peer peer-checked:bg-green-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4"></div>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="flex justify-end mt-4">
+        <button
+          onClick={closeSettingsModal}
+          className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-semibold transition-all"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
       {/* --- End of New Code --- */}
 
       {/* Existing Hotel Modal */}

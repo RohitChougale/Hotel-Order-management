@@ -20,6 +20,7 @@ import Signup from "./pages/Signup";
 import Login from "./pages/Login";
 import { Toaster } from 'react-hot-toast';
 import ProtectedRoute from "./components/ProtectedRoute";
+import CounterDisplay from "./components/counterDisplay";
 
 function App() {
   return (
@@ -47,6 +48,7 @@ function App() {
           <Route path="/counterOrder" element={<ProtectedRoute><CounterOrder/></ProtectedRoute>}/>
           <Route path="/runningCoupons" element={<ProtectedRoute><RunningCoupons/></ProtectedRoute>}/>
           <Route path="/counterAnalytics" element={<ProtectedRoute><CounterAnalytics/></ProtectedRoute>}/>
+          <Route path="/counterDisplay" element={<ProtectedRoute><CounterDisplay/></ProtectedRoute>}/>
           <Route path="/signup" element={<Signup/>}/>
 
         </Routes>

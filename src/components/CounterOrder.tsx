@@ -10,11 +10,13 @@ import {
   deleteDoc,
   query,
   where,
+  onSnapshot,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 import { getAuth } from "firebase/auth";
+import { XCircle, Ticket, Monitor } from "lucide-react";
 import BackButton from "../elements/BackButton";
 
 declare global {
@@ -24,11 +26,13 @@ declare global {
     };
   }
 }
-const fetchSeparateTrackingSetting = async (userId :any) => {
+const fetchSeparateTrackingSetting = async (userId: any) => {
   try {
     const settingsRef = doc(db, "users", userId, "settings", "userSettings");
     const settingsSnap = await getDoc(settingsRef);
-    return settingsSnap.exists() ? settingsSnap.data()?.saprateTracking || false : false;
+    return settingsSnap.exists()
+      ? settingsSnap.data()?.saprateTracking || false
+      : false;
   } catch (error) {
     console.error("Error fetching separate tracking setting:", error);
     return false;
@@ -42,6 +46,7 @@ export default function CounterOrder() {
     nameMarathi: string;
     price: number;
     code: string;
+    show: boolean;
   };
 
   const [items, setItems] = useState<CounterItem[]>([]);
@@ -62,7 +67,9 @@ export default function CounterOrder() {
 
   // New states for fixing the bugs
   const [isProcessing, setIsProcessing] = useState(false);
-  const [processingOrderType, setProcessingOrderType] = useState<string | null>(null);
+  const [processingOrderType, setProcessingOrderType] = useState<string | null>(
+    null
+  );
 
   // Cancel coupon states
   const [showCancelDialog, setShowCancelDialog] = useState(false);
@@ -94,17 +101,28 @@ export default function CounterOrder() {
 
   useEffect(() => {
     const fetchItems = async () => {
-      const separateTrackingEnabled = await fetchSeparateTrackingSetting(currentUser!.uid);
-    setSeparateTracking(separateTrackingEnabled);
-      const snapshot = await getDocs(
-        collection(db, "users", currentUser!.uid, "counterItems")
+      const separateTrackingEnabled = await fetchSeparateTrackingSetting(
+        currentUser!.uid
       );
-      const list = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as CounterItem[];
-     list.sort((a, b) => Number(a.code) - Number(b.code));
-      setItems(list);
+      setSeparateTracking(separateTrackingEnabled);
+      const unsubscribe = onSnapshot(
+        collection(db, "users", currentUser!.uid, "counterItems"),
+        (snapshot) => {
+          const list = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as CounterItem[];
+
+          // ✅ Show only items with show=true or undefined
+          const visibleItems = list.filter((item) => item.show !== false);
+
+          // ✅ Sort by code
+          visibleItems.sort((a, b) => Number(a.code) - Number(b.code));
+
+          setItems(visibleItems);
+        }
+      );
+      return () => unsubscribe();
     };
     fetchItems();
 
@@ -136,7 +154,7 @@ export default function CounterOrder() {
       }
     };
     fetchPrintSettings();
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
@@ -145,10 +163,10 @@ export default function CounterOrder() {
         event.target instanceof HTMLTextAreaElement
       )
         return;
-      
+
       // Prevent hotkeys when processing
       if (isProcessing) return;
-      
+
       if (event.key.toLowerCase() === "t") {
         event.preventDefault();
         handleOrder("Table");
@@ -172,62 +190,66 @@ export default function CounterOrder() {
         .split(" ")
         .map((term) => term.trim())
         .filter(Boolean);
-      
+
       const results = items.filter((item) => {
         return searchTerms.some((term) => {
           const termLower = term.toLowerCase();
-          
+
           // Try multiple comparison methods for codes
           const itemCode = item.code;
-          
+
           // Method 1: Direct comparison
           if (itemCode === term) {
             return true;
           }
-          
+
           // Method 2: Case insensitive comparison
           if (itemCode?.toString().toLowerCase() === termLower) {
             return true;
           }
-          
+
           // Method 3: Trimmed comparison (in case of whitespace)
           if (itemCode?.toString().trim() === term.trim()) {
             return true;
           }
-          
+
           // Method 4: Case insensitive trimmed comparison
           if (itemCode?.toString().trim().toLowerCase() === termLower) {
             return true;
           }
-          
+
           // Check for partial name match (case insensitive)
           if (item.name?.toLowerCase().startsWith(termLower)) return true;
-          
+
           // Check for partial Marathi name match (case insensitive)
-          if (item.nameMarathi?.toLowerCase().includes(termLower)) {
-            return true;
-          }
-          
+          // if (item.nameMarathi?.toLowerCase().includes(termLower)) {
+          //   return true;
+          // }
+
           return false;
         });
       });
-      
+
       // Enhanced debug info
-      console.log('=== SEARCH DEBUG ===');
-      console.log('Search input:', `"${searchCode}"`);
-      console.log('Search terms:', searchTerms);
-      console.log('Total items:', items.length);
-      console.log('All item codes:', items.map(item => `"${item.code}"`).join(', '));
-      console.log('Codes that contain your search term:', 
-        items.filter(item => 
-          searchTerms.some(term => 
-            item.code?.toString().includes(term)
-          )
-        ).map(item => ({ code: `"${item.code}"`, name: item.name }))
+      console.log("=== SEARCH DEBUG ===");
+      console.log("Search input:", `"${searchCode}"`);
+      console.log("Search terms:", searchTerms);
+      console.log("Total items:", items.length);
+      console.log(
+        "All item codes:",
+        items.map((item) => `"${item.code}"`).join(", ")
       );
-      console.log('Filtered results:', results.length);
-      console.log('===================');
-      
+      console.log(
+        "Codes that contain your search term:",
+        items
+          .filter((item) =>
+            searchTerms.some((term) => item.code?.toString().includes(term))
+          )
+          .map((item) => ({ code: `"${item.code}"`, name: item.name }))
+      );
+      console.log("Filtered results:", results.length);
+      console.log("===================");
+
       setFilteredItems(results);
     }
   }, [searchCode, items]);
@@ -238,61 +260,63 @@ export default function CounterOrder() {
 
   const getTodayDate = () => dayjs().format("YYYY-MM-DD");
 
-  const getNextCouponNumber = async (orderType:any) => {
-  const today = getTodayDate();
-  
-  if (separateTracking) {
-    // Separate tracking for each order type
-    const metaRef = doc(
-      db,
-      "users",
-      currentUser!.uid,
-      "counterMeta",
-      `couponTracker_${orderType}`
-    );
-    const metaSnap = await getDoc(metaRef);
-    let newCouponNumber = 1;
+  const getNextCouponNumber = async (orderType: any) => {
+    const today = getTodayDate();
 
-    if (metaSnap.exists()) {
-      const data = metaSnap.data();
-      if (data.lastResetDate === today) {
-        newCouponNumber = data.lastCouponNumber + 1;
-        if (newCouponNumber > 100) newCouponNumber = 1;
+    if (separateTracking) {
+      // Separate tracking for each order type
+      const metaRef = doc(
+        db,
+        "users",
+        currentUser!.uid,
+        "counterMeta",
+        `couponTracker_${orderType}`
+      );
+      const metaSnap = await getDoc(metaRef);
+      let newCouponNumber = 1;
+
+      if (metaSnap.exists()) {
+        const data = metaSnap.data();
+        if (data.lastResetDate === today) {
+          newCouponNumber = data.lastCouponNumber + 1;
+          if (newCouponNumber > 100) newCouponNumber = 1;
+        }
       }
-    }
-    await setDoc(metaRef, {
-      lastCouponNumber: newCouponNumber,
-      lastResetDate: today,
-    });
-    return newCouponNumber;
-  } else {
-    // Original unified tracking
-    const metaRef = doc(
-      db,
-      "users",
-      currentUser!.uid,
-      "counterMeta",
-      "couponTracker"
-    );
-    const metaSnap = await getDoc(metaRef);
-    let newCouponNumber = 1;
+      await setDoc(metaRef, {
+        lastCouponNumber: newCouponNumber,
+        lastResetDate: today,
+      });
+      return newCouponNumber;
+    } else {
+      // Original unified tracking
+      const metaRef = doc(
+        db,
+        "users",
+        currentUser!.uid,
+        "counterMeta",
+        "couponTracker"
+      );
+      const metaSnap = await getDoc(metaRef);
+      let newCouponNumber = 1;
 
-    if (metaSnap.exists()) {
-      const data = metaSnap.data();
-      if (data.lastResetDate === today) {
-        newCouponNumber = data.lastCouponNumber + 1;
-        if (newCouponNumber > 100) newCouponNumber = 1;
+      if (metaSnap.exists()) {
+        const data = metaSnap.data();
+        if (data.lastResetDate === today) {
+          newCouponNumber = data.lastCouponNumber + 1;
+          if (newCouponNumber > 100) newCouponNumber = 1;
+        }
       }
+      await setDoc(metaRef, {
+        lastCouponNumber: newCouponNumber,
+        lastResetDate: today,
+      });
+      return newCouponNumber;
     }
-    await setDoc(metaRef, {
-      lastCouponNumber: newCouponNumber,
-      lastResetDate: today,
-    });
-    return newCouponNumber;
-  }
-};
+  };
 
-  const handleOrder = async (orderType: "Table" | "Parcel" | "Swiggy-Zomato") => {
+  const handleOrder = async (
+    orderType: "Table" | "Parcel" | "Swiggy-Zomato"
+  ) => {
     const { orderItems, subTotal } = currentOrderDetails;
     if (orderItems.length === 0) {
       alert("Please add at least one item.");
@@ -307,9 +331,11 @@ export default function CounterOrder() {
 
     const timestamp = Timestamp.now();
     const couponNumber = await getNextCouponNumber(orderType);
-    const couponId = separateTracking 
-    ? `${orderType.charAt(0)}${String(couponNumber).padStart(2, "0")}`
-    : `${String(couponNumber).padStart(2, "0")}`;
+    const couponId = separateTracking
+      ? `${orderType === "Swiggy-Zomato" ? "D" : orderType.charAt(0)}${String(
+          couponNumber
+        ).padStart(2, "0")}`
+      : `${String(couponNumber).padStart(2, "0")}`;
 
     const orderData = {
       items: orderItems.map(({ id, ...rest }) => rest),
@@ -342,8 +368,14 @@ export default function CounterOrder() {
 
     // Fix 2: Store in Firebase in background (don't await)
     Promise.all([
-      addDoc(collection(db, "users", currentUser!.uid, "counterOrder"), orderData),
-      addDoc(collection(db, "users", currentUser!.uid, "counterbill"), orderData)
+      addDoc(
+        collection(db, "users", currentUser!.uid, "counterOrder"),
+        orderData
+      ),
+      addDoc(
+        collection(db, "users", currentUser!.uid, "counterbill"),
+        orderData
+      ),
     ]).catch((error) => {
       console.error("Error storing order in Firebase:", error);
       // You might want to show an error message to the user here
@@ -421,24 +453,34 @@ export default function CounterOrder() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-orange-100 p-4 sm:p-6">
-      
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <h1 className="text-3xl sm:text-4xl font-extrabold text-orange-700">
           🧾 Counter Order
         </h1>
-        <div className="flex flex-col  sm:flex-row gap-2">
+        <div className=" flex flex-wrap justify-center gap-2 sm:gap-3 p-3 bg-gray-50 shadow-inner rounded-lg">
+          {/* Cancel Coupon */}
           <button
             onClick={() => setShowCancelDialog(true)}
-            className="bg-red-600 text-white px-4 py-2 rounded-lg shadow hover:bg-red-700 font-semibold transition text-sm sm:text-base"
+            className="flex-1 sm:flex-none max-w-[180px] flex items-center justify-center gap-2 bg-gradient-to-r from-red-500 to-red-700 text-white px-3 sm:px-4 py-2 sm:py-2 rounded-lg shadow-md hover:scale-105 hover:shadow-xl transition-all font-semibold text-xs sm:text-sm md:text-base"
           >
-            ❌ Cancel Coupon
+            <XCircle className="w-4 h-4 sm:w-5 sm:h-5" /> Cancel
           </button>
+
+          {/* Running Coupons */}
           <button
             onClick={() => navigate("/runningCoupons")}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg shadow hover:bg-green-700 font-semibold transition text-sm sm:text-base"
+            className="flex-1 sm:flex-none max-w-[200px] flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-green-700 text-white px-3 sm:px-4 py-2 sm:py-2 rounded-lg shadow-md hover:scale-105 hover:shadow-xl transition-all font-semibold text-xs sm:text-sm md:text-base"
           >
-            🔖 Running Coupons
+            <Ticket className="w-4 h-4 sm:w-5 sm:h-5" /> Running
+          </button>
+
+          {/* Display */}
+          <button
+            onClick={() => navigate("/counterDisplay")}
+            className="flex-1 sm:flex-none max-w-[160px] flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-blue-700 text-white px-3 sm:px-4 py-2 sm:py-2 rounded-lg shadow-md hover:scale-105 hover:shadow-xl transition-all font-semibold text-xs sm:text-sm md:text-base"
+          >
+            <Monitor className="w-4 h-4 sm:w-5 sm:h-5" /> Display
           </button>
         </div>
       </div>
@@ -449,8 +491,9 @@ export default function CounterOrder() {
           <p className="text-blue-800">
             <strong>Hotkeys:</strong> Press{" "}
             <kbd className="bg-blue-200 px-1 rounded">T</kbd> for Table,{" "}
-            <kbd className="bg-blue-200 px-1 rounded ml-1">P</kbd> for Parcel,{" "} 
-            <kbd className="bg-blue-200 px-1 rounded ml-1">S</kbd> for Delivery Partner
+            <kbd className="bg-blue-200 px-1 rounded ml-1">P</kbd> for Parcel,{" "}
+            <kbd className="bg-blue-200 px-1 rounded ml-1">S</kbd> for Delivery
+            Partner
           </p>
         </div>
         <div className="flex items-center justify-center gap-6 mb-6">
@@ -513,14 +556,21 @@ export default function CounterOrder() {
             </div>
 
             <div className="flex-grow">
-              <h2 className="text-base font-bold text-gray-800 mb-1">{item.name}</h2>
-              <p className="text-gray-500 font-medium text-sm mb-2">₹{item.price}</p>
+              <h2 className="text-base font-bold text-gray-800 mb-1">
+                {item.name}
+              </h2>
+              <p className="text-gray-500 font-medium text-sm mb-2">
+                ₹{item.price}
+              </p>
             </div>
 
             <div className="flex items-center justify-center gap-2 mt-2">
               <button
                 onClick={() =>
-                  handleQuantityChange(item.id, Math.max((quantities[item.id] || 0) - 1, 0))
+                  handleQuantityChange(
+                    item.id,
+                    Math.max((quantities[item.id] || 0) - 1, 0)
+                  )
                 }
                 className="bg-gray-200 hover:bg-gray-300 text-xl font-bold w-8 h-8 rounded"
               >
