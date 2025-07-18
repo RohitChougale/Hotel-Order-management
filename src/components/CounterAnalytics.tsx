@@ -23,6 +23,13 @@ import {
   YAxis,
 } from "recharts";
 import BackButton from "../elements/BackButton";
+declare global {
+  interface Window {
+    ReactNativeWebView?: {
+      postMessage: (message: string) => void;
+    };
+  }
+}
 
 export default function CounterAnalytics() {
   const [data, setData] = useState<any[]>([]);
@@ -49,6 +56,9 @@ export default function CounterAnalytics() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const auth = getAuth();
   const currentUser = auth.currentUser;
+  const isReactNative = () => {
+  return window.ReactNativeWebView !== undefined;
+};
 
   useEffect(() => {
     const fetchItems = async () => {
@@ -176,27 +186,80 @@ useEffect(() => {
 
   const downloadCSV = () => {
     const csv = Papa.unparse(filteredData);
+    if (isReactNative()) {
+    // Send message to React Native
+    const message = {
+      type: 'downloadCSV',
+      payload: {
+        csvData: csv,
+        fileName: 'counter_analytics',
+      }
+    };
+    
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify(message));
+    }
+  } else {
+    // Original web download logic
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
     link.download = "counter_analytics.csv";
     link.click();
+    URL.revokeObjectURL(url);
+  }
   };
 
   const downloadPDF = () => {
     const doc = new jsPDF();
     doc.text("Counter Item Analytics", 14, 16);
-    autoTable(doc, {
-      startY: 20,
-      head: [["Item", "Quantity", "Subtotal ₹"]],
-      body: filteredData.map((item) => [
-        item.name,
-        item.quantity,
-        item.subtotal.toFixed(2),
-      ]),
-    });
+    doc.setFontSize(12);
+  doc.text(`Date Range: ${startDate} to ${endDate}`, 14, 26);
+  
+  // Add filters info
+  let yPosition = 36;
+  if (orderType !== "all") {
+    doc.text(`Order Type: ${orderType}`, 14, yPosition);
+    yPosition += 10;
+  }
+  if (paymentMethod !== "all") {
+    doc.text(`Payment Method: ${paymentMethod}`, 14, yPosition);
+    yPosition += 10;
+  }
+  
+  // Add table
+  autoTable(doc, {
+    startY: yPosition + 10,
+    head: [["Item", "Quantity", "Subtotal ₹"]],
+    body: filteredData.map((item) => [
+      item.name,
+      item.quantity,
+      item.subtotal.toFixed(2),
+    ]),
+    foot: [["Total", "", totalRevenue.toFixed(2)]],
+    footStyles: { fillColor: [255, 165, 0], textColor: 255, fontStyle: 'bold' },
+  });
+  
+  if (isReactNative()) {
+    // Convert PDF to base64 and send to React Native
+    const pdfBase64 = doc.output('datauristring').split(',')[1]; // Remove data:application/pdf;base64, prefix
+    
+    const message = {
+      type: 'downloadPDF',
+      payload: {
+        pdfData: pdfBase64,
+        fileName: 'counter_analytics',
+      }
+    };
+    
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify(message));
+    }
+  } else {
+    // Original web download logic
     doc.save("counter_analytics.pdf");
+  }
   };
 
   const totalRevenue = filteredData.reduce(

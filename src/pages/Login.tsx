@@ -8,32 +8,33 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [appVersion, setAppVersion] = useState("");
+  // const [appVersion, setAppVersion] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const navigate = useNavigate();
+  const appVersion='1.1.4'
 
-  useEffect(() => {
-    const fetchAppInfo = async () => {
-      try {
-        const docRef = doc(db, "appInfo", "version");
-        const docSnap = await getDoc(docRef);
+  // useEffect(() => {
+  //   const fetchAppInfo = async () => {
+  //     try {
+  //       const docRef = doc(db, "appInfo", "version");
+  //       const docSnap = await getDoc(docRef);
 
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setAppVersion(data.version);
-        } else {
-          setAppVersion("1.1.3");
-        }
-      } catch (error) {
-        console.error("Error fetching app version:", error);
-        setAppVersion("1.1.3");
-      }
-    };
+  //       if (docSnap.exists()) {
+  //         const data = docSnap.data();
+  //         setAppVersion(data.version);
+  //       } else {
+  //         setAppVersion("1.1.3");
+  //       }
+  //     } catch (error) {
+  //       console.error("Error fetching app version:", error);
+  //       setAppVersion("1.1.3");
+  //     }
+  //   };
 
-    fetchAppInfo();
-  }, []);
+  //   fetchAppInfo();
+  // }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
