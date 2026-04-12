@@ -557,7 +557,7 @@ export default function CounterOrder() {
 
             <div className="flex-grow">
               <h2 className="text-base font-bold text-gray-800 mb-1">
-                {item.name}
+                {item.nameMarathi}
               </h2>
               <p className="text-gray-500 font-medium text-sm mb-2">
                 ₹{item.price}
